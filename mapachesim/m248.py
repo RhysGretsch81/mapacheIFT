@@ -5,14 +5,12 @@ class MemoryConverter:
         self.isa = isa
 
     def __getitem__(self, address):
-        # TODO I'm cheating by hardcoding 0x10000; it's set in the machine,
-        # which the isa object doesn't have access to. Ideally this entire
-        # type of 'memory conversion' would go in the machine object.
-        return self.isa.mem_read(0x10000 + address, self.isa.isize)
+        # This is very probably wrong.
+        return self.isa.mem_read(address, self.isa.isize)
 
     def __setitem__(self, address, data):
-        # TODO see above.
-        self.isa.mem_write(0x10000 + address, int.to_bytes(data, 1, 'big', signed=True))
+        # See above.
+        self.isa.mem_write(address, int.to_bytes(data, 1, 'big', signed=True))
 
 class M248(IsaDefinition):
     ''' The tiny riscy 2-operand M248 ISA
@@ -32,6 +30,7 @@ class M248(IsaDefinition):
         program = [
             0b00000101, # NAND $zero $r1
             0b00100011, # STORE $r1 $zero => mem[rf[$zero]] = rf[$r1]
+            0b00101001, # NAND $r1 $r2
         ]
         return bytes(program), b''
 

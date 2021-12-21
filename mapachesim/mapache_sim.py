@@ -23,8 +23,8 @@ class MapacheShell(cmd.Cmd):
 
     def __init__(self):
         super().__init__()
-        #self.machine = m248.M248()
-        self.machine = mips.Mips()
+        self.machine = m248.M248()
+        #self.machine = mips.Mips()
         #self.machine = toy.Toy()
         self.text_start_address = 0x10000
         self.data_start_address = 0x40000
