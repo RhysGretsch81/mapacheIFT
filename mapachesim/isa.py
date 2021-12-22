@@ -1,8 +1,8 @@
 ''' MIPS definition classes. '''
 
-import types
 import collections
-
+import types
+import re
 
 class ISAError(Exception):
     pass
@@ -99,7 +99,7 @@ class  IsaDefinition:
         return clean_format
 
     def _pattern_match(self, ifunc, instr):
-        '''Check if a function docstring matches the instr provided, return fields or None.'''
+        '''Check if a function docstring matches the raw bytes of instr provided, return fields or None.'''
         if len(instr) != self.isize:
             raise ISAError(f'instruction "{instr}" is {len(instr)} bytes not {self.isize}.')
         pattern = self._extract_pattern(ifunc)
@@ -211,3 +211,54 @@ class  IsaDefinition:
         return int.from_bytes(self.mem_read(start_addr, 2), signed=True)
     def mem_read_8bit(self, start_addr):
         return int.from_bytes(self.mem_read(start_addr, 1), signed=True)
+
+    def assemble(self, program):
+        ''' Return a list of byte-encoded assembly from source. '''
+        rawtext, data = [], []
+        labels = {}
+        for tokens in self.assemble_segment_tokens(program,'.data'):
+            data.append(self.assemble_data(tokens, labels))
+        for tokens in self.assemble_segment_tokens(program,'.text'):
+            label = self.assemble_label(tokens)
+            if label:
+                labels[label] = len(rawtext)
+                rawtext.append(tokens[1:])
+            else:
+                rawtext.append(tokens)
+
+        text = []
+        for tokens in rawtext[1:]:  # first row is ".text"
+            if tokens == []:
+                continue
+            coded_instr = self.machine_code(tokens, labels)
+            text.append(coded_instr)
+        return text, data
+
+    def assemble_segment_tokens(self, program, segment_name):
+        current_segment = None
+        for line in program.splitlines():
+            # this is a hack and will mess up string constants for certain
+            line = line.split('#')[0] # remove everything after "#"
+            line = re.sub(',',' ',line) # remove all commas
+            tokens = line.split()
+            if len(tokens)>0 and re.match('^\.[a-zA-Z][a-zA-Z]*$', tokens[0]):
+                current_segment = tokens[0]
+            if current_segment == segment_name:
+                yield tokens
+
+    def assemble_data(self, tokens, labels):
+        return b'' # STUB
+
+    def assemble_label(self, tokens):
+        '''Parse assembly string and return label as string or None.'''
+        # "mylabel: foo $2 $3" -> "mylabel' or None
+        if len(tokens)>0 and re.match('^[a-zA-Z][a-zA-Z]*:$', tokens[0]):
+            return tokens[0][:-1]
+        else:
+            return None
+
+    def machine_code(self, tokens, labels):
+        # find matching instruction and then pack the bits as specified :)
+        '''Takes a list of assembly tokens and dictionary of labels, returns bytearray of encoded instruction'''
+        # example: machine_code(['addi','$t0','$t0','4'], {}) -> b'\x21\x08\x00\x04'
+        return b''

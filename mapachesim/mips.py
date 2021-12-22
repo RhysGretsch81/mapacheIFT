@@ -23,20 +23,6 @@ class Mips(IsaDefinition):
         self.jumps = set([self.instruction_j])
         self.endian = 'big'
 
-    def assemble(self, file, text_start_address, data_start_address):
-        '''Covert a file to code and data bytes.'''
-        ks_arch = keystone.KS_ARCH_MIPS
-        ks_mode = keystone.KS_MODE_MIPS32 + keystone.KS_MODE_BIG_ENDIAN
-        with open(file,'r') as f:
-            source = f.read()
-            try:
-                self.ks = keystone.Ks(ks_arch, ks_mode)
-                encoding, count = self.ks.asm(source, addr=text_start_address)
-            except keystone.KsError as e:
-                print(f'\nError: Cannot parse assembly. [{e}]\n')
-        code = bytes(bytearray(encoding))
-        return code, b''  # STUB for data
-
     def instruction_j(self, ifield):
         'jump: 000010 aaaaaaaaaaaaaaaaaaaaaaaaaa : j @a'
         upper_bits = bit_select(self.PC + 4, 31, 28)
@@ -60,3 +46,14 @@ class Mips(IsaDefinition):
         if ifunction not in self.jumps:
             self.PC = self.PC + 4
 
+
+
+mips = Mips()
+mips.assemble(''' 
+   .text
+   main:
+         addi $t0, $t0, 4
+
+   loop: addi $t1, $t1, 4
+         j loop
+''')

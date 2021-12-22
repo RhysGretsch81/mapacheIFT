@@ -26,6 +26,7 @@ class MapacheShell(cmd.Cmd):
         #self.machine = m248.M248()
         self.machine = mips.Mips()
         #self.machine = toy.Toy()
+        print(f'Loading "{type(self.machine).__name__}" processor model.')
         self.text_start_address = self.machine.text_start_address
         self.data_start_address = self.machine.data_start_address
         # map 2MB memory for emulation
