@@ -63,6 +63,8 @@ class  IsaDefinition:
         # the parameters below are set by default but can be overridden in derived classes
         self.endian = 'big'  # can be either 'big' or 'little'
         self.isize = 4  # width of an instruction in bytes
+        self.text_start_address = 0x10000
+        self.data_start_address = 0x40000
 
     def make_register(self, name, bits=32):
         '''Add a special purpose register to the machine specification.'''
@@ -191,3 +193,21 @@ class  IsaDefinition:
     def mem_write(self, start_addr, data):
         '''Write an array of bytes into memory.'''
         self._mem[start_addr:start_addr+len(data)] = data
+
+    # Some simple wrappers for mem_read and mem_write for readability
+    def mem_write_64bit(self, start_addr, value):
+        self.mem_write(start_addr, int.to_bytes(value, 8, self.endian, signed=True))
+    def mem_write_32bit(self, start_addr, value):
+        self.mem_write(start_addr, int.to_bytes(value, 4, self.endian, signed=True))
+    def mem_write_16bit(self, start_addr, value):
+        self.mem_write(start_addr, int.to_bytes(value, 2, self.endian, signed=True))
+    def mem_write_8bit(self, start_addr, value):
+        self.mem_write(start_addr, int.to_bytes(value, 1, self.endian, signed=True))
+    def mem_read_64bit(self, start_addr):
+        return int.from_bytes(self.mem_read(start_addr, 8), signed=True)
+    def mem_read_32bit(self, start_addr):
+        return int.from_bytes(self.mem_read(start_addr, 4), signed=True)
+    def mem_read_16bit(self, start_addr):
+        return int.from_bytes(self.mem_read(start_addr, 2), signed=True)
+    def mem_read_8bit(self, start_addr):
+        return int.from_bytes(self.mem_read(start_addr, 1), signed=True)

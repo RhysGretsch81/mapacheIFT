@@ -1,16 +1,16 @@
 from isa import IsaDefinition
 
-class MemoryConverter:
-    def __init__(self, isa):
-        self.isa = isa
-
-    def __getitem__(self, address):
-        # This is very probably wrong.
-        return self.isa.mem_read(address, self.isa.isize)
-
-    def __setitem__(self, address, data):
-        # See above.
-        self.isa.mem_write(address, int.to_bytes(data, 1, 'big', signed=True))
+#class MemoryConverter:
+#    def __init__(self, isa):
+#        self.isa = isa
+#
+#    def __getitem__(self, address):
+#        # This is very probably wrong.
+#        return self.isa.mem_read(address, self.isa.isize)
+#
+#    def __setitem__(self, address, data):
+#        # See above.
+#        self.isa.mem_write(address, int.to_bytes(data, 1, 'big', signed=True))
 
 class M248(IsaDefinition):
     ''' The tiny riscy 2-operand M248 ISA
@@ -23,7 +23,8 @@ class M248(IsaDefinition):
         self.make_register_file('R', 4, 8)
         self.make_register('PC', 8)
         self.isize = 1
-        self.M = MemoryConverter(self)
+        self.text_start_address = 0x00
+        self.data_start_address = 0xff # not sure there is even space for data :)
 
     def assemble(self, file, text_start_address, data_start_address):
         ''' Covert a file to code and data bytes. '''
@@ -46,9 +47,10 @@ class M248(IsaDefinition):
 
     def instruction_load(self, ifield):
         'load : rrrddd10 : load $r $d'
-        self.R[ifield.d] = self.M[self.R[ifield.r]]
-        pass
+        self.R[ifield.d] = self.mem_read_8bit(self.R[ifield.r])
+        #self.R[ifield.d] = self.M[self.R[ifield.r]]
 
     def instruction_store(self, ifield):
         'store : rrrddd11 : store $r $d'
-        self.M[self.R[ifield.d]] = self.R[ifield.r]
+        self.mem_write_8bit(self.R[ifield.d], value=self.R[ifield.r])
+        #self.M[self.R[ifield.d]] = self.R[ifield.r]
