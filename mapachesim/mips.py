@@ -49,7 +49,7 @@ class Mips(IsaDefinition):
 
 
 mips = Mips()
-mips.assemble(''' 
+asm = mips.assemble(''' 
    .text
    main:
          addi $t0, $t0, 4
@@ -57,3 +57,4 @@ mips.assemble('''
    loop: addi $t1, $t1, 4
          j loop
 ''')
+print(asm)

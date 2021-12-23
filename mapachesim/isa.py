@@ -19,6 +19,8 @@ def bit_select(value, upper_bit, lower_bit, shift=False):
     '''Mask out all but a field of bits (from upper->lower inclusive).'''
     if upper_bit < lower_bit:
         raise ISAError(f'upper_bit "{upper_bit}" is lower than lower_bit "{lower_bit}".')
+    if lower_bit < 0:
+        raise ISAError(f'lower_bit "{lower_bit}" is less than zero.')
     smask = mask(upper_bit+1) & ~mask(lower_bit)
     shamt = lower_bit if shift else 0
     return (value & smask) >> shamt
@@ -258,7 +260,64 @@ class  IsaDefinition:
             return None
 
     def machine_code(self, tokens, labels):
-        # find matching instruction and then pack the bits as specified :)
         '''Takes a list of assembly tokens and dictionary of labels, returns bytearray of encoded instruction'''
         # example: machine_code(['addi','$t0','$t0','4'], {}) -> b'\x21\x08\x00\x04'
-        return b''
+        iname = tokens[0]
+        iops = tokens[1:]
+        for ifunc in self._ifuncs:
+            if ifunc.__name__ == f'instruction_{iname}':
+                pattern = self._extract_pattern(ifunc)
+                asm = self._extract_asm(ifunc)
+                asmops = asm.split()[1:]
+                return self.machine_code_pack(pattern, asmops, iops, labels)
+        raise ISAError(f'Cannot find instruction "{iname}".')
+
+    def machine_code_pack(self, pattern, asmops, iops, labels):
+        '''Pack the instruction operands into the assembly instruction.'''
+        instr = 0
+        optable = self.machine_code_make_optable(asmops, iops, labels)
+        counttable = {p:pattern.count(p) for p in optable}
+        for p in pattern:
+            print(hex(instr))
+            if p=='0':
+                instr = (instr<<1)
+            elif p=='1':
+                instr = (instr<<1) | 0x1
+            else:
+                value = optable[p]
+                bitpos = counttable[p]
+                pbit = bit_select(value, bitpos, bitpos, shift=True)
+                assert pbit==0 or pbit==1
+                instr = (instr<<1) | pbit
+                counttable[p] -= 1
+
+        encoded_instr_as_bytes = instr.to_bytes(self.isize, byteorder=self.endian, signed=False)
+        print(hex(instr))
+        return encoded_instr_as_bytes
+
+    def register_number_from_name(self, name_in_code):
+        for rtype,name,bits,size,rname in self._reg_list:
+            if rtype=='file':
+                for rnum,register_name in rname.items():
+                    if register_name==name_in_code:
+                        return rnum
+        return int(name)
+
+    def machine_code_make_optable(self, asmops, iops, labels):
+        optable = {}
+        if len(asmops) != len(iops):
+            raise ISAError(f'Cannot match "{asmops}" to "{iops}.')
+        for op_def, op_input in zip(asmops, iops):
+            if op_def.startswith('$'):
+                rnum = self.register_number_from_name(op_input)
+                optable[op_def[1:]] = rnum
+                print(f'${rnum}')
+            elif op_def.startswith('@'):
+                optable[op_def[1:]] = labels[op_input]
+                print(f'@{labels[op_input]}')
+            elif op_def.startswith('!'):
+                optable[op_def[1:]] = int(op_input, 16)
+                print(f'!{int(op_input, 16)}')
+            else:
+                raise ISAError(f'Unknown op_def "{op_def}" in "{asmops}".')
+        return optable
