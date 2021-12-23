@@ -57,4 +57,5 @@ asm = mips.assemble('''
    loop: addi $t1, $t1, 4
          j loop
 ''')
-print(asm)
+# TODO: still need a way to pack an address properly.  Maybe a per-instruction
+# hook?  Or different types of "a" (such as "wa" for word address?)

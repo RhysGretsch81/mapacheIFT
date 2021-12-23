@@ -278,14 +278,13 @@ class  IsaDefinition:
         optable = self.machine_code_make_optable(asmops, iops, labels)
         counttable = {p:pattern.count(p) for p in optable}
         for p in pattern:
-            print(hex(instr))
             if p=='0':
                 instr = (instr<<1)
             elif p=='1':
                 instr = (instr<<1) | 0x1
             else:
                 value = optable[p]
-                bitpos = counttable[p]
+                bitpos = counttable[p]-1
                 pbit = bit_select(value, bitpos, bitpos, shift=True)
                 assert pbit==0 or pbit==1
                 instr = (instr<<1) | pbit
@@ -311,13 +310,10 @@ class  IsaDefinition:
             if op_def.startswith('$'):
                 rnum = self.register_number_from_name(op_input)
                 optable[op_def[1:]] = rnum
-                print(f'${rnum}')
             elif op_def.startswith('@'):
                 optable[op_def[1:]] = labels[op_input]
-                print(f'@{labels[op_input]}')
             elif op_def.startswith('!'):
                 optable[op_def[1:]] = int(op_input, 16)
-                print(f'!{int(op_input, 16)}')
             else:
                 raise ISAError(f'Unknown op_def "{op_def}" in "{asmops}".')
         return optable
