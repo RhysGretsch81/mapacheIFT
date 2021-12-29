@@ -57,6 +57,6 @@ asm = Assembler(mips).assemble('''
 
    loop: addi $t1, $t1, 4
          j loop
-''')
+''', text_start_address=mips.text_start_address, data_start_address=mips.data_start_address)
 # TODO: still need a way to pack an address properly.  Maybe a per-instruction
 # hook?  Or different types of "a" (such as "wa" for word address?)

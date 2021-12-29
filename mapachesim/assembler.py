@@ -7,58 +7,80 @@ from helpers import bit_select, log2
 # class might be refactors to be a thinner interface, with the simulation
 # stripped out to seperate class as well?
 
+
+asm_id = '[a-zA-Z_][a-zA-Z0-9_]*'
+
 class Assembler:
     def __init__(self, isa):
         self.isa = isa
+        self.END_OF_LINE = object()
 
-    def assemble(self, program, start_addr=None):
+    def assemble(self, program, text_start_address, data_start_address):
         ''' Return a list of byte-encoded assembly from source. '''
-        rawtext, data = [], []
         labels = {}
-        if start_addr is None:
-            start_addr = self.isa.text_start_address
-        for tokens in self.assemble_segment_tokens(program,'.data'):
-            data.append(self.assemble_data(tokens, labels))
-        for tokens in self.assemble_segment_tokens(program,'.text'):
-            label = self.assemble_label(tokens)
-            if label:
-                instr_num = len(rawtext)
-                labels[label] = instr_num * self.isa.isize + start_addr
-                print(hex(instr_num * self.isa.isize + start_addr))
-                rawtext.append(tokens[1:])
-            else:
-                rawtext.append(tokens)
-
-        text = []
-        for tokens in rawtext[1:]:  # first row is ".text"
-            if tokens == []:
-                continue
-            coded_instr = self.machine_code(tokens, labels)
-            text.append(coded_instr)
+        tokenized_program = list(self.tokenize(program))
+        data = self.assemble_data(labels, tokenized_program, data_start_address)
+        self.set_text_labels(labels, tokenized_program, text_start_address)
+        text = self.assemble_text(labels, tokenized_program)
         return text, data
 
-    def assemble_segment_tokens(self, program, segment_name):
-        current_segment = None
-        for line in program.splitlines():
+    def tokenize(self, program):
+        ''' Break program text into tokens by whitespace, including special EOL. '''
+        for line_number, line in enumerate(program.splitlines()):
             # this is a hack and will mess up string constants for certain
             line = line.split('#')[0] # remove everything after "#"
             line = re.sub(',',' ',line) # remove all commas
             tokens = line.split()
-            if len(tokens)>0 and re.match('^\.[a-zA-Z][a-zA-Z]*$', tokens[0]):
-                current_segment = tokens[0]
-            if current_segment == segment_name:
-                yield tokens
+            if len(tokens)==0:
+                continue
+            for token in tokens:
+                yield line_number, token
+            yield line_number, self.END_OF_LINE
 
-    def assemble_data(self, tokens, labels):
-        return b'' # STUB
+    def assemble_data(self, labels, tokenized_program, data_start_address):
+        ''' Return the data segment bytes and update the label table. '''
+        pass  # STUB
 
-    def assemble_label(self, tokens):
-        '''Parse assembly string and return label as string or None.'''
-        # "mylabel: foo $2 $3" -> "mylabel' or None
-        if len(tokens)>0 and re.match('^[a-zA-Z][a-zA-Z]*:$', tokens[0]):
-            return tokens[0][:-1]
-        else:
-            return None
+    def set_text_labels(self, labels, tokenized_program, text_start_address):
+        ''' Walk the instructions and set the text label addresses. '''
+        instr_number = 0
+        for lineno, instr in self.instructions(tokenized_program):
+            if re.match(f'^{asm_id}:$', instr[0]):
+                label_name = instr[0][:-1]
+                labels[label_name] = instr_number * self.isa.isize + text_start_address
+            else:
+                instr_number += 1
+
+    def assemble_text(self, labels, tokenized_program):
+        ''' Given the labels and tokenized program, return a list of bytes for the text segment. '''
+        text = []
+        for lineno, instr in self.instructions(tokenized_program):
+            if re.match(f'^{asm_id}:$', instr[0]):
+                continue
+            coded_instr = self.machine_code(instr, labels)
+            text.append(coded_instr)
+        return text
+
+    def instructions(self, tokenized_program):
+        ''' Take a tokenized program and generate lists of token by instruction. '''
+        instr = []
+        for lineno, token in self.segment(tokenized_program, '.text'):
+            if token!=self.END_OF_LINE and re.match(f'^{asm_id}:$', token):
+                yield lineno, [token]
+            elif token is self.END_OF_LINE and instr:
+                yield lineno, instr
+                instr = []
+            elif token!=self.END_OF_LINE:
+                instr.append(token)
+
+    def segment(self, tokenized_program, segment_name):
+        ''' Generate the tokens corresponding to the specified segement. '''
+        for lineno, token in tokenized_program:
+            if token!=self.END_OF_LINE and re.match(f'^\.{asm_id}$', token):
+                current_segment = token
+            elif current_segment == segment_name:
+                yield lineno, token
+
 
     def machine_code(self, tokens, labels):
         '''Takes a list of assembly tokens and dictionary of labels, returns bytearray of encoded instruction'''
