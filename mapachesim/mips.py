@@ -23,9 +23,10 @@ class Mips(IsaDefinition):
         self.make_register('LO', 32)
         self.jumps = set([self.instruction_j])
         self.endian = 'big'
+        self.assembler = Assembler(self)
 
     def instruction_j(self, ifield):
-        'jump: 000010 aaaaaaaaaaaaaaaaaaaaaaaaaa : j @a'
+        'jump : 000010 aaaaaaaaaaaaaaaaaaaaaaaaaa : j @a'
         upper_bits = bit_select(self.PC + 4, 31, 28)
         self.PC = upper_bits + (ifield.a << 2)
 
@@ -46,17 +47,3 @@ class Mips(IsaDefinition):
         self.R[0] = 0  # keep regisiter 0 value as zero
         if ifunction not in self.jumps:
             self.PC = self.PC + 4
-
-
-
-mips = Mips()
-asm = Assembler(mips).assemble(''' 
-   .text
-   main:
-         addi $t0, $t0, 4
-
-   loop: addi $t1, $t1, 4
-         j loop
-''', text_start_address=mips.text_start_address, data_start_address=mips.data_start_address)
-# TODO: still need a way to pack an address properly.  Maybe a per-instruction
-# hook?  Or different types of "a" (such as "wa" for word address?)

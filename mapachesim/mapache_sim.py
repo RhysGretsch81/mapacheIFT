@@ -1,9 +1,17 @@
 '''The UCSB Mapache Interactive Architecture Simulator'''
 
 import cmd
+
 import mips
 import toy
 import m248
+
+# Notes: 
+# 1) consider adding a lookup hierarchy for certian functions going from the 
+#    starting from the shell and falling through to the machine.  This would
+#    allow the shell to overwrite defaults more cleanly (e.g. start address
+#    and assembler).  Or perhaps handle through inheritence?
+
 
 def chunk_list(lst, n):
     '''Chunk a list into a list of lists of length n.'''
@@ -63,10 +71,14 @@ class MapacheShell(cmd.Cmd):
             mem_row = sep.join(mem_words)
             print(f'{addr:#010x}:{sep}{mem_row}')
 
-    def load_instr(self, code):
+    def load_text(self, code):
         '''Load a bytearray of code into instruction memory, and start up simulator.'''
         self.machine.mem_write(self.text_start_address, code) # write code to emulated memory
         self.machine.PC = self.text_start_address # set pc using the setter
+
+    def load_data(self, data):
+        '''Load a bytearray in to the data segment and set up the rest of memory.'''
+        self.machine.mem_write(self.data_start_address, data) # write data segment to emulated memory 
 
     def do_mtest(self, arg):
         # non-public command to run a working test
@@ -84,7 +96,7 @@ class MapacheShell(cmd.Cmd):
         print('        addi $t2, $t2, 4  # 21 4a 00 04')
         print()
         
-        self.load_instr(testcode)
+        self.load_text(testcode)
         print()
         self.print_registers()
         print()
@@ -103,9 +115,12 @@ class MapacheShell(cmd.Cmd):
         'Load an assembly file into the simulator: load filename.asm'
         filename = arg
         try:
-            code, data = self.machine.assemble(filename, self.text_start_address, self.data_start_address)
-            self.machine.mem_write(self.data_start_address, data) # write data segment to emulated memory 
-            self.load_instr(code)
+            tstart, dstart = self.text_start_address, self.data_start_address
+            with open(filename,'r') as file:
+                program = file.read()
+            code, data = self.machine.assembler.assemble(program, tstart, dstart)
+            self.load_data(data)
+            self.load_text(code)
         except FileNotFoundError as e:
             print(f'\nError: Cannot find file "{filename}" to load. [{e}]\n')
 

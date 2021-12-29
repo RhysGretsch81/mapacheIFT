@@ -3,6 +3,7 @@
 import collections
 import types
 
+import assembler
 from helpers import ISADefinitionError
 
 #-----------------------------------------------------------------------
@@ -22,6 +23,7 @@ class  IsaDefinition:
         self.isize = 4  # width of an instruction in bytes
         self.text_start_address = 0x10000
         self.data_start_address = 0x40000
+        self.assembler = assembler.Assembler(self)
 
     def make_register(self, name, bits=32):
         '''Add a special purpose register to the machine specification.'''

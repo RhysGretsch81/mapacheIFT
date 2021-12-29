@@ -2,6 +2,7 @@
 
 import re
 from helpers import bit_select, log2
+from helpers import ISADefinitionError, AssemblyError
 
 # Right now Assember reaches way too far into the isa class.  The isa
 # class might be refactors to be a thinner interface, with the simulation
@@ -24,22 +25,9 @@ class Assembler:
         text = self.assemble_text(labels, tokenized_program)
         return text, data
 
-    def tokenize(self, program):
-        ''' Break program text into tokens by whitespace, including special EOL. '''
-        for line_number, line in enumerate(program.splitlines()):
-            # this is a hack and will mess up string constants for certain
-            line = line.split('#')[0] # remove everything after "#"
-            line = re.sub(',',' ',line) # remove all commas
-            tokens = line.split()
-            if len(tokens)==0:
-                continue
-            for token in tokens:
-                yield line_number, token
-            yield line_number, self.END_OF_LINE
-
     def assemble_data(self, labels, tokenized_program, data_start_address):
         ''' Return the data segment bytes and update the label table. '''
-        pass  # STUB
+        return []  # STUB
 
     def set_text_labels(self, labels, tokenized_program, text_start_address):
         ''' Walk the instructions and set the text label addresses. '''
@@ -53,12 +41,13 @@ class Assembler:
 
     def assemble_text(self, labels, tokenized_program):
         ''' Given the labels and tokenized program, return a list of bytes for the text segment. '''
-        text = []
+        instr_bytes = []
         for lineno, instr in self.instructions(tokenized_program):
             if re.match(f'^{asm_id}:$', instr[0]):
                 continue
             coded_instr = self.machine_code(instr, labels)
-            text.append(coded_instr)
+            instr_bytes.append(coded_instr)
+        text = b''.join(instr_bytes)
         return text
 
     def instructions(self, tokenized_program):
@@ -81,6 +70,18 @@ class Assembler:
             elif current_segment == segment_name:
                 yield lineno, token
 
+    def tokenize(self, program):
+        ''' Break program text into tokens by whitespace, including special EOL. '''
+        for line_number, line in enumerate(program.splitlines()):
+            # this is a hack and will mess up string constants for certain
+            line = line.split('#')[0] # remove everything after "#"
+            line = re.sub(',',' ',line) # remove all commas
+            tokens = line.split()
+            if len(tokens)==0:
+                continue
+            for token in tokens:
+                yield line_number, token
+            yield line_number, self.END_OF_LINE
 
     def machine_code(self, tokens, labels):
         '''Takes a list of assembly tokens and dictionary of labels, returns bytearray of encoded instruction'''
@@ -114,7 +115,6 @@ class Assembler:
                 counttable[p] -= 1
 
         encoded_instr_as_bytes = instr.to_bytes(self.isa.isize, byteorder=self.isa.endian, signed=False)
-        print(hex(instr))
         return encoded_instr_as_bytes
 
     def machine_code_make_optable(self, asmops, iops, labels):

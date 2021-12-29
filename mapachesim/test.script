@@ -1,0 +1,8 @@
+load ../asm/simpleloop-mips.asm
+step
+step
+step
+step
+step
+regs
+mem
