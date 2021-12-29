@@ -1,7 +1,8 @@
 ''' MIPS machine definition. '''
 
-import keystone  # <- pip3 install keystone-engine
-from isa import IsaDefinition, sign_extend, bit_select
+from helpers import sign_extend, bit_select
+from isa import IsaDefinition
+from assembler import Assembler
 
 class Mips(IsaDefinition):
     ''' MIPS Instruction Set Definition. '''
@@ -49,7 +50,7 @@ class Mips(IsaDefinition):
 
 
 mips = Mips()
-asm = mips.assemble(''' 
+asm = Assembler(mips).assemble(''' 
    .text
    main:
          addi $t0, $t0, 4

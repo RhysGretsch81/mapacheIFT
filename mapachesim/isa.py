@@ -1,54 +1,9 @@
-''' MIPS definition classes. '''
+''' ISA definition classes. '''
 
 import collections
 import types
-import re
 
-class ISAError(Exception):
-    pass
-
-#-----------------------------------------------------------------------
-def mask(n):
-    '''Return an n-bit bit mask (e.g mask(3) returns 0x7).'''
-    return (1<<n)-1
-
-assert mask(3) == 0x7
-
-#-----------------------------------------------------------------------
-def bit_select(value, upper_bit, lower_bit, shift=False):
-    '''Mask out all but a field of bits (from upper->lower inclusive).'''
-    if upper_bit < lower_bit:
-        raise ISAError(f'upper_bit "{upper_bit}" is lower than lower_bit "{lower_bit}".')
-    if lower_bit < 0:
-        raise ISAError(f'lower_bit "{lower_bit}" is less than zero.')
-    smask = mask(upper_bit+1) & ~mask(lower_bit)
-    shamt = lower_bit if shift else 0
-    return (value & smask) >> shamt
-
-#     bit position: 543210
-assert bit_select(0b111111,3,1) == 0b01110
-assert bit_select(0b111000,3,1) == 0b01000
-assert bit_select(0b111111,2,2) == 0b00100
-assert bit_select(0b111000,3,1,shift=True) == 0b0100
-assert bit_select(0b111111,2,2,shift=True) == 0b001
-
-#-----------------------------------------------------------------------
-def sign_extend(i, bits):
-    '''Sign extend a set of bits.'''
-    upper_mask = ~mask(bits)
-    if i & upper_mask != 0:
-        raise ISAError(f'upper bits of i "{i}" not 0.')
-
-    if i & (1<<(bits-1)) == 0:
-        return i
-    else:
-        return i | upper_mask
-
-assert sign_extend(0b1111,4) == -1
-assert sign_extend(0b1000,4) == -8
-assert sign_extend(0b0000,4) == 0
-assert sign_extend(0b0111,4) == 7
-
+from helpers import ISADefinitionError
 
 #-----------------------------------------------------------------------
 
@@ -91,19 +46,27 @@ class  IsaDefinition:
                 for i in range(size):
                     yield rnames[i], bits, getattr(self, name)[i]
 
+    def register_number_from_name(self, name_in_code):
+        for rtype,name,bits,size,rname in self._reg_list:
+            if rtype=='file':
+                for rnum,register_name in rname.items():
+                    if register_name==name_in_code:
+                        return rnum
+        return int(name)
+
     def _extract_pattern(self, func):
         '''Extract an patterns from the instruction function docstring.'''
         # string should look like 'add immediate : 001000 sssss ttttt iiiiiiiiiii: something'
         docstring = func.__doc__
         clean_format = docstring.replace(' ','').split(':')[1]
         if len(clean_format) != self.isize*8:
-            raise ISAError(f'format for "{clean_format}" is {len(clean_format)} bits not {self.isize*8}.')
+            raise ISADefinitionError(f'format for "{clean_format}" is {len(clean_format)} bits not {self.isize*8}.')
         return clean_format
 
     def _pattern_match(self, ifunc, instr):
         '''Check if a function docstring matches the raw bytes of instr provided, return fields or None.'''
         if len(instr) != self.isize:
-            raise ISAError(f'instruction "{instr}" is {len(instr)} bytes not {self.isize}.')
+            raise ISADefinitionError(f'instruction "{instr}" is {len(instr)} bytes not {self.isize}.')
         pattern = self._extract_pattern(ifunc)
         instr_as_integer = int.from_bytes(instr, self.endian)
         instr_as_list_of_bits = [(instr_as_integer>>(s-1)) & 0x1 for s in range(self.isize*8,0,-1)]
@@ -147,7 +110,7 @@ class  IsaDefinition:
                 immed = operand_field(part, '!')
                 instruction.append(f'{hex(immed)}')
             else:
-                raise ISAError(f'Unknown operand specifier: "{part}" in "{asm_pattern}"')
+                raise ISADefinitionError(f'Unknown operand specifier: "{part}" in "{asm_pattern}"')
         return str.join(' ', instruction)
 
     def fetch(self):
@@ -160,7 +123,7 @@ class  IsaDefinition:
             ifield = self._pattern_match(ifunc, instr)
             if ifield is not None:
                 return ifunc, ifield
-        raise ISAError(f'Unable to decode bytes as instruction:"{instr}".')
+        raise ISADefinitionError(f'Unable to decode bytes as instruction:"{instr}".')
 
     def execute(self, decoded_instr):
         '''Execute a decoded instruction.'''
@@ -214,106 +177,3 @@ class  IsaDefinition:
     def mem_read_8bit(self, start_addr):
         return int.from_bytes(self.mem_read(start_addr, 1), signed=True)
 
-    def assemble(self, program):
-        ''' Return a list of byte-encoded assembly from source. '''
-        rawtext, data = [], []
-        labels = {}
-        for tokens in self.assemble_segment_tokens(program,'.data'):
-            data.append(self.assemble_data(tokens, labels))
-        for tokens in self.assemble_segment_tokens(program,'.text'):
-            label = self.assemble_label(tokens)
-            if label:
-                labels[label] = len(rawtext)
-                rawtext.append(tokens[1:])
-            else:
-                rawtext.append(tokens)
-
-        text = []
-        for tokens in rawtext[1:]:  # first row is ".text"
-            if tokens == []:
-                continue
-            coded_instr = self.machine_code(tokens, labels)
-            text.append(coded_instr)
-        return text, data
-
-    def assemble_segment_tokens(self, program, segment_name):
-        current_segment = None
-        for line in program.splitlines():
-            # this is a hack and will mess up string constants for certain
-            line = line.split('#')[0] # remove everything after "#"
-            line = re.sub(',',' ',line) # remove all commas
-            tokens = line.split()
-            if len(tokens)>0 and re.match('^\.[a-zA-Z][a-zA-Z]*$', tokens[0]):
-                current_segment = tokens[0]
-            if current_segment == segment_name:
-                yield tokens
-
-    def assemble_data(self, tokens, labels):
-        return b'' # STUB
-
-    def assemble_label(self, tokens):
-        '''Parse assembly string and return label as string or None.'''
-        # "mylabel: foo $2 $3" -> "mylabel' or None
-        if len(tokens)>0 and re.match('^[a-zA-Z][a-zA-Z]*:$', tokens[0]):
-            return tokens[0][:-1]
-        else:
-            return None
-
-    def machine_code(self, tokens, labels):
-        '''Takes a list of assembly tokens and dictionary of labels, returns bytearray of encoded instruction'''
-        # example: machine_code(['addi','$t0','$t0','4'], {}) -> b'\x21\x08\x00\x04'
-        iname = tokens[0]
-        iops = tokens[1:]
-        for ifunc in self._ifuncs:
-            if ifunc.__name__ == f'instruction_{iname}':
-                pattern = self._extract_pattern(ifunc)
-                asm = self._extract_asm(ifunc)
-                asmops = asm.split()[1:]
-                return self.machine_code_pack(pattern, asmops, iops, labels)
-        raise ISAError(f'Cannot find instruction "{iname}".')
-
-    def machine_code_pack(self, pattern, asmops, iops, labels):
-        '''Pack the instruction operands into the assembly instruction.'''
-        instr = 0
-        optable = self.machine_code_make_optable(asmops, iops, labels)
-        counttable = {p:pattern.count(p) for p in optable}
-        for p in pattern:
-            if p=='0':
-                instr = (instr<<1)
-            elif p=='1':
-                instr = (instr<<1) | 0x1
-            else:
-                value = optable[p]
-                bitpos = counttable[p]-1
-                pbit = bit_select(value, bitpos, bitpos, shift=True)
-                assert pbit==0 or pbit==1
-                instr = (instr<<1) | pbit
-                counttable[p] -= 1
-
-        encoded_instr_as_bytes = instr.to_bytes(self.isize, byteorder=self.endian, signed=False)
-        print(hex(instr))
-        return encoded_instr_as_bytes
-
-    def register_number_from_name(self, name_in_code):
-        for rtype,name,bits,size,rname in self._reg_list:
-            if rtype=='file':
-                for rnum,register_name in rname.items():
-                    if register_name==name_in_code:
-                        return rnum
-        return int(name)
-
-    def machine_code_make_optable(self, asmops, iops, labels):
-        optable = {}
-        if len(asmops) != len(iops):
-            raise ISAError(f'Cannot match "{asmops}" to "{iops}.')
-        for op_def, op_input in zip(asmops, iops):
-            if op_def.startswith('$'):
-                rnum = self.register_number_from_name(op_input)
-                optable[op_def[1:]] = rnum
-            elif op_def.startswith('@'):
-                optable[op_def[1:]] = labels[op_input]
-            elif op_def.startswith('!'):
-                optable[op_def[1:]] = int(op_input, 16)
-            else:
-                raise ISAError(f'Unknown op_def "{op_def}" in "{asmops}".')
-        return optable

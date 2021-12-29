@@ -1,6 +1,7 @@
 '''A toy microprocessor definition. '''
 
-from isa import IsaDefinition, sign_extend, bit_select
+from isa import IsaDefinition
+from helpers import sign_extend, bit_select
 
 class Toy(IsaDefinition):
     ''' Toy Instruction Set Definition. '''
