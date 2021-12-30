@@ -136,13 +136,14 @@ class  IsaDefinition:
         return instr_string
 
     def step(self):
-        '''Step the simulator forward and return a string of instruction executed.'''
+        '''Step the simulator forward and return tuple(pc, a string of instruction executed).'''
+        ipc = self.PC
         instr_mem = self.fetch()
         decoded_instr = self.decode(instr_mem)
         self.execute(decoded_instr)
         if hasattr(self,'finalize_execution'):
             self.finalize_execution(decoded_instr)
-        return self.istring(decoded_instr)
+        return ipc, self.istring(decoded_instr)
 
     def mem_map(self, start_address, size):
         '''Map a region of physical memory into the simulator.'''

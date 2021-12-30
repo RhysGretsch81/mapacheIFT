@@ -4,6 +4,8 @@
 ______________________________________________________________________________________
 # To be added for CS64 MIPS usecase
 
+* Add breakpoints based on labels
+
 * Better error messages for assembly syntax errors
 
 * Ability to set breakpoints, and run to a breakpoint
