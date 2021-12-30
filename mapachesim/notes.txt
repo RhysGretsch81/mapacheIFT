@@ -1,0 +1,31 @@
+
+### Notes on things to improve
+
+______________________________________________________________________________________
+# To be added for CS64 MIPS usecase
+
+* Better error messages for assembly syntax errors
+
+* Ability to set breakpoints, and run to a breakpoint
+
+______________________________________________________________________________________
+# To be fixed for handling multiple architectures reliable
+
+* Add checks to ensure the function name and op in docstring match (to catch copy/paste errors)
+
+* Change register printing to account for non-32bit register sizes
+
+______________________________________________________________________________________
+# To be improved for readability and extensibility
+
+* Right now Assember reaches way too far into the isa class.  The isa class might be refactored to
+be a cleaner interface
+
+* The simulation and ISA definition are together in a single class/interface.  It might be helpful
+to figure out how those different functions might be seperated.
+
+* Consider adding a lookup hierarchy for certian functions going from the  starting from the shell
+and falling through to the machine.  This would allow the shell to overwrite defaults more cleanly
+(e.g. start address and assembler).  Or perhaps handle through inheritence?
+
+

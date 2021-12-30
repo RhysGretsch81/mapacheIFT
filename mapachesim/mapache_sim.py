@@ -6,12 +6,6 @@ import mips
 import toy
 import m248
 
-# Notes: 
-# 1) consider adding a lookup hierarchy for certian functions going from the 
-#    starting from the shell and falling through to the machine.  This would
-#    allow the shell to overwrite defaults more cleanly (e.g. start address
-#    and assembler).  Or perhaps handle through inheritence?
-
 
 def chunk_list(lst, n):
     '''Chunk a list into a list of lists of length n.'''

@@ -4,11 +4,6 @@ import re
 from helpers import bit_select, log2
 from helpers import ISADefinitionError, AssemblyError
 
-# Right now Assember reaches way too far into the isa class.  The isa
-# class might be refactors to be a thinner interface, with the simulation
-# stripped out to seperate class as well?
-
-
 asm_id = '[a-zA-Z_][a-zA-Z0-9_]*'
 
 class Assembler:

@@ -6,10 +6,6 @@ import types
 import assembler
 from helpers import ISADefinitionError
 
-#-----------------------------------------------------------------------
-
-# Error checking to add:
-# 1) check if function name and op in docstring mismatch
 
 class  IsaDefinition:
     ''' A base class for defining ISAs. '''
