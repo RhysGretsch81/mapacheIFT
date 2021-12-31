@@ -21,9 +21,21 @@ class Mips(IsaDefinition):
         self.make_register('PC', 32)
         self.make_register('HI', 32)
         self.make_register('LO', 32)
-        self.jumps = set([self.instruction_j])
+        self.jumps = set([self.instruction_j, self.instruction_jr, self.instruction_jalr])
         self.endian = 'big'
         self.assembler = Assembler(self)
+
+    def finalize_execution(self, decoded_instr):
+        ifunction, ifields = decoded_instr
+        self.R[0] = 0  # keep regisiter 0 value as zero
+        if ifunction not in self.jumps:
+            self.PC = self.PC + 4
+
+    def invalid_when(self, condition, message):
+        if condition:
+            raise ValueError(message)
+
+    # R-format Instructions
 
     def instruction_sll(self, ifield):
         'shift left logical : 000000 xxxxx ttttt ddddd hhhhh 000000: sll $d $t !h'
@@ -49,14 +61,60 @@ class Mips(IsaDefinition):
         'shift right arithmetic variable : 000000 sssss ttttt ddddd xxxxx 000111: srav $d $t $s'
         self.R[ifield.d] = sign_extend(self.R[ifield.t],32) >> self.R[ifield.s]
 
+    def instruction_jr(self, ifield):
+        'jump register : 000000 sssss xxxxx xxxxx xxxxx 001000: jr $s'
+        self.invalid_when(self.R[ifield.s] % 4 != 0, 'jr: R[$rs] must be a multiple of 4')
+        self.PC = self.R[ifield.s]
+
+    def instruction_jalr(self, ifield):
+        'jump-and-link register: 000000 sssss xxxxx ddddd xxxxx 001001: jalr $d $s'
+        self.invalid_when(self.R[ifield.s] % 4 != 0, 'jalr: R[$rs] must be a multiple of 4')
+        self.invalid_when(ifield.s == ifield.d, 'jalr: $rs and $rd must be different registers')
+        tmp = self.R[ifield.s]
+        self.R[ifield.d] = self.PC + 4
+        self.PC = tmp
+
+    def instruction_syscall(self, ifield):
+        'system call : 000000 xxxxx xxxxx xxxxx xxxxx 001100: syscall'
+        v0, a0, a1 = 2, 4, 5
+        if self.R[v0] == 1:  # print integer
+            print(sign_extend(self.R[a0],32))
+        elif self.R[v0] == 4:  # print string
+            maxstring = 1024
+            address = self.R[a0]
+            printable_chars = set(bytes(string.printable, 'ascii'))
+            for i in range(maxstring):
+                next_byte = self.mem_read(start_addr, 1)
+                if next_byte == b'\x00':
+                    break
+                elif next_byte in printable_chars:
+                    print(next_byte.decode('ascii'), end='')
+                else:
+                    print('<?>', end='')
+                address += 1
+            else: # hit the maxstring limit
+                    print(f'... (string continues beyond limit of {maxstring})', end='')
+        elif self.R[v0] == 5:  # read integer
+            raise NotImplementedError('read integer')
+        elif self.R[v0] == 8:  # read string
+            raise NotImplementedError('read string')
+        elif self.R[v0] == 10:  # exit
+            raise NotImplementedError('exit')
+        else:
+            self.invalid_when(True, 'syscall: invalid system call service')
+
     def instruction_add(self, ifield):
         'add : 000000 sssss ttttt ddddd xxxxx 100000: addi $d $s $t'
         self.R[ifield.d] = self.R[ifield.s] + self.R[ifield.t] 
+
+    # J-format Instructions
 
     def instruction_j(self, ifield):
         'jump : 000010 aaaaaaaaaaaaaaaaaaaaaaaaaa : j @a'
         upper_bits = bit_select(self.PC + 4, 31, 28)
         self.PC = upper_bits + (ifield.a << 2)
+
+    # I-format Instructions
 
     def instruction_addi(self, ifield):
         'add immediate : 001000 sssss ttttt iiiiiiiiiiiiiiii : addi $t $s !i'
@@ -66,8 +124,3 @@ class Mips(IsaDefinition):
         'nop : 000000 00000 00000 00000 00000 000000 : nop'
         pass
 
-    def finalize_execution(self, decoded_instr):
-        ifunction, ifields = decoded_instr
-        self.R[0] = 0  # keep regisiter 0 value as zero
-        if ifunction not in self.jumps:
-            self.PC = self.PC + 4
