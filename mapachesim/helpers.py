@@ -20,6 +20,24 @@ def mask(n):
 assert mask(3) == 0x7
 
 #-----------------------------------------------------------------------
+def align(addr, alignment):
+    '''Given an address, return the smallest aligned address larger than addr.'''
+    if addr % alignment:
+        offset = alignment-(addr%alignment)
+        return addr + offset
+    else:
+        return addr
+
+assert align(0,4) == 0
+assert align(4,4) == 4
+assert align(5,4) == 8
+assert align(7,4) == 8
+assert align(8,4) == 8
+assert align(9,4) == 12
+assert align(9,2) == 10
+assert align(9,1) == 9
+
+#-----------------------------------------------------------------------
 def bit_select(value, upper_bit, lower_bit, shift=False):
     '''Mask out all but a field of bits (from upper->lower inclusive).'''
     if upper_bit < lower_bit:

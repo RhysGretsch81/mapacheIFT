@@ -210,7 +210,7 @@ class MapacheShell(cmd.Cmd):
     def do_run(self, arg):
         'Run the loaded program. e.g. "run"'
         self.machine.PC = self.text_start_address
-        print('REMINDER: reset the registers')
+        print('TODO REMINDER: reset the registers')
         self.run()
 
     def do_continue(self, arg):

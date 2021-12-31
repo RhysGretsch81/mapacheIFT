@@ -1,7 +1,7 @@
 ''' Generic Assembler. '''
 
 import re
-from helpers import bit_select, log2
+from helpers import bit_select, log2, align
 from helpers import ISADefinitionError, AssemblyError
 
 asm_id = '[a-zA-Z_][a-zA-Z0-9_]*'
@@ -22,7 +22,44 @@ class Assembler:
 
     def assemble_data(self, labels, tokenized_program, data_start_address):
         ''' Return the data segment bytes and update the label table. '''
-        return []  # STUB
+        data_bytes = []
+        address = data_start_address
+        for lineno, label, type, value in self.program_data(tokenized_program):
+            padding = self.pad_to_align(address, type)
+            address += len(padding)
+            data_bytes.append(padding)
+            labels[label] = address
+            coded_data = self.code_data(type, value, lineno)
+            address += len(coded_data)
+            data_bytes.append(coded_data)
+        final_data = b''.join(data_bytes)
+        return final_data
+
+    def pad_to_align(self, address, type):
+        # TODO: should these data types and alignments be ISA specific?
+        if type in ['word', 'float']:
+            alignment = 4
+        elif type in ['half']:
+            alignment = 2
+        else:
+            alignment = 1
+        pad_amount = align(address, alignment) - address
+        padding = b'\x00' * pad_amount
+        return padding
+
+    def program_data(self, tokenized_program):
+        pass
+
+    def code_data(self, type, value, lineno):
+        # TODO should the word size be an ISA specific thing?
+        if type == 'asciiz':
+            return value.encode('ascii') + b'\x00'
+        elif type == 'word':
+            return value.to_bytes(4, self.isa.endian)
+        elif type == 'half':
+            return value.to_bytes(2, self.isa.endian)
+        else:
+            raise AssemblyError(f'Unknown data type "{type}" at line {lineno}.')
 
     def set_text_labels(self, labels, tokenized_program, text_start_address):
         ''' Walk the instructions and set the text label addresses. '''
