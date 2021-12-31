@@ -210,6 +210,7 @@ class MapacheShell(cmd.Cmd):
     def do_run(self, arg):
         'Run the loaded program. e.g. "run"'
         self.machine.PC = self.text_start_address
+        print('REMINDER: reset the registers')
         self.run()
 
     def do_continue(self, arg):
@@ -228,7 +229,7 @@ class MapacheShell(cmd.Cmd):
                 self.error_msg(f'Cannot add unaligned breakpoint to address "{addr}".')
             else:
                 self.breakpoints[addr] = arg
-                print(f'Added breakpoint at {addr} (named "{arg}").')
+                print(f'Added breakpoint at {addr:010x} (named "{arg}").')
 
     def do_delete(self, arg):
         'Delete breakpoint at specificed address or label.'
@@ -236,7 +237,7 @@ class MapacheShell(cmd.Cmd):
         if addr:
             if addr in self.breakpoints:
                 del self.breakpoint[addr]
-                print(f'Removed breakpoint from address "{addr}".')
+                print(f'Removed breakpoint from address "{addr:010x}".')
             else:
                 self.error_msg(f'No breakpoint set at "{addr}".')
 

@@ -25,14 +25,38 @@ class Mips(IsaDefinition):
         self.endian = 'big'
         self.assembler = Assembler(self)
 
-    def instruction_j(self, ifield):
-        'jump : 000010 aaaaaaaaaaaaaaaaaaaaaaaaaa : j @a'
-        upper_bits = bit_select(self.PC + 4, 31, 28)
-        self.PC = upper_bits + (ifield.a << 2)
+    def instruction_sll(self, ifield):
+        'shift left logical : 000000 xxxxx ttttt ddddd hhhhh 000000: sll $d $t !h'
+        self.R[ifield.d] = self.R[ifield.t] << ifield.h
+
+    def instruction_srl(self, ifield):
+        'shift right logical : 000000 xxxxx ttttt ddddd hhhhh 000010: srl $d $t !h'
+        self.R[ifield.d] = self.R[ifield.t] >> ifield.h
+
+    def instruction_sra(self, ifield):
+        'shift right arithmetic : 000000 xxxxx ttttt ddddd hhhhh 000011: sra $d $t !h'
+        self.R[ifield.d] = sign_extend(self.R[ifield.t],32) >> ifield.h
+
+    def instruction_sllv(self, ifield):
+        'shift left logical variable : 000000 sssss ttttt ddddd xxxxx 000100: sllv $d $t $s'
+        self.R[ifield.d] = self.R[ifield.t] << self.R[ifield.s]
+
+    def instruction_srlv(self, ifield):
+        'shift right logical variable : 000000 sssss ttttt ddddd xxxxx 000110: srlv $d $t $s'
+        self.R[ifield.d] = self.R[ifield.t] >> self.R[ifield.s]
+
+    def instruction_srav(self, ifield):
+        'shift right arithmetic variable : 000000 sssss ttttt ddddd xxxxx 000111: srav $d $t $s'
+        self.R[ifield.d] = sign_extend(self.R[ifield.t],32) >> self.R[ifield.s]
 
     def instruction_add(self, ifield):
         'add : 000000 sssss ttttt ddddd xxxxx 100000: addi $d $s $t'
         self.R[ifield.d] = self.R[ifield.s] + self.R[ifield.t] 
+
+    def instruction_j(self, ifield):
+        'jump : 000010 aaaaaaaaaaaaaaaaaaaaaaaaaa : j @a'
+        upper_bits = bit_select(self.PC + 4, 31, 28)
+        self.PC = upper_bits + (ifield.a << 2)
 
     def instruction_addi(self, ifield):
         'add immediate : 001000 sssss ttttt iiiiiiiiiiiiiiii : addi $t $s !i'
