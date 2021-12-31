@@ -1,6 +1,7 @@
 '''The UCSB Mapache Interactive Architecture Simulator'''
 
 import cmd
+import signal
 
 import mips
 import toy
@@ -26,6 +27,9 @@ class MapacheShell(cmd.Cmd):
     def __init__(self):
         super().__init__()
         self.initialize()
+        signal.signal(signal.SIGINT, handler=self.handler_sigint)
+        self._interrupted = False # true when sigint has been caught
+        self._running = False # true only during a "run"
 
     def initialize(self):
         #self.machine = m248.M248()
@@ -37,6 +41,22 @@ class MapacheShell(cmd.Cmd):
         self.breakpoints = {}
         # map 2MB memory for emulation
         self.machine.mem_map(self.text_start_address, 2 * 1024 * 1024)
+
+    def run(self):
+        '''Run the machine simulation forward until broken, used by "run" and "continue".'''
+        self._running = True
+        pc, instruction_string = self.machine.step()
+        while True:
+            if self._interrupted:
+                self._interrupted = False
+                self.print_current_instruction(pc, instruction_string, 'interrupted')
+                self._running = False
+                return
+            elif self.machine.PC in self.breakpoints:
+                self.print_current_instruction(pc, instruction_string, 'breakpoint')
+                self._running = False
+                return
+            pc, instruction_string = self.machine.step()
 
     def parse_arg_as_address(self, arg, default=None):
         '''Take an argument and attempt convert it address (as a number or label).'''
@@ -109,6 +129,12 @@ class MapacheShell(cmd.Cmd):
     def error_msg(self, msg):
         '''Print a non-fatal error message to the user.'''
         print(f'\n{msg}\n')
+
+    def handler_sigint(self, signal, frame):
+        self._interrupted = True
+        print()
+        if not self._running:
+            self.do_exit(None)
 
     def do_mtest(self, arg):
         # non-public command to run a working test
@@ -184,17 +210,11 @@ class MapacheShell(cmd.Cmd):
     def do_run(self, arg):
         'Run the loaded program. e.g. "run"'
         self.machine.PC = self.text_start_address
-        pc, instruction_string = self.machine.step()
-        while self.machine.PC not in self.breakpoints:
-            pc, instruction_string = self.machine.step()
-        self.print_current_instruction(pc, instruction_string, 'breakpoint')
+        self.run()
 
     def do_continue(self, arg):
         'Continue running program after break. e.g. "continue"'
-        pc, instruction_string = self.machine.step()
-        while self.machine.PC not in self.breakpoints:
-            pc, instruction_string = self.machine.step()
-        self.print_current_instruction(pc, instruction_string, 'breakpoint')
+        self.run()
 
     def do_reinitialize(self, arg):
         'Clear the memory and registers and reload machine model. e.g. "reinitialize"'
