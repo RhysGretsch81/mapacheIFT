@@ -9,6 +9,9 @@ ________________________________________________________________________________
 * Better error messages for assembly syntax errors
 
 * Reset registers when "run" command is used
+
+* Error message for "li" pseudo-instructions
+
 ______________________________________________________________________________________
 # To be fixed for handling multiple architectures reliable
 

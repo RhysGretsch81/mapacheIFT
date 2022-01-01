@@ -4,14 +4,15 @@ import collections
 import types
 
 import assembler
-from helpers import ISADefinitionError
+from helpers import ISADefinitionError, AssemblyError
 
 
 class  IsaDefinition:
     ''' A base class for defining ISAs. '''
 
     def __init__(self):
-        self._ifuncs = [getattr(self,f) for f in dir(self) if f.startswith('instruction_')]
+        self._instrfuncs = [getattr(self,f) for f in dir(self) if f.startswith('instruction_')]
+        self._pseudofuncs = [getattr(self,f) for f in dir(self) if f.startswith('pseudo_')]
         self._reg_list = []
         self._mem = None
         # the parameters below are set by default but can be overridden in derived classes
@@ -20,6 +21,7 @@ class  IsaDefinition:
         self.text_start_address = 0x10000
         self.data_start_address = 0x40000
         self.assembler = assembler.Assembler(self)
+        # TODO: add sanity check, look for "psuedo" instead of "pseudo"
 
     def make_register(self, name, bits=32):
         '''Add a special purpose register to the machine specification.'''
@@ -50,7 +52,13 @@ class  IsaDefinition:
                 for rnum,register_name in rname.items():
                     if register_name==name_in_code:
                         return rnum
-        return int(name)
+        # can't find name, maybe it is a number directly
+        if name_in_code.startswith('$'):
+            try:
+                return int(name_in_code[1:])
+            except ValueError:
+                pass  # we are about to generate an error anyways
+        raise AssemblyError(f'unknown register "{name_in_code}".')
 
     def _extract_pattern(self, func):
         '''Extract an patterns from the instruction function docstring.'''
@@ -117,7 +125,7 @@ class  IsaDefinition:
 
     def decode(self, instr):
         '''Given an instruction (as array of bytes) return its decoded form.'''
-        for ifunc in self._ifuncs:
+        for ifunc in self._instrfuncs:
             ifield = self._pattern_match(ifunc, instr)
             if ifield is not None:
                 return ifunc, ifield

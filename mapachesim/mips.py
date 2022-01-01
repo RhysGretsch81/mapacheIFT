@@ -35,6 +35,19 @@ class Mips(IsaDefinition):
         if condition:
             raise ValueError(message)
 
+    # Pseudo Instructions
+
+    def pseudo_li(self, ifield):
+        'load immediate : pseudo : li $d !i'
+        const = ifield.i
+        if const.bit_length() <= 16:
+            yield f'addiu ${ifield.d} $0 {const}'
+        else:
+            upper = const & 0xffff0000
+            lower = const & 0x0000ffff
+            yield f'lui ${ifield.d} {str(upper)}'
+            yield f'ori ${ifield.d} {str(lower)}'
+
     # R-format Instructions
 
     def instruction_sll(self, ifield):
@@ -118,6 +131,10 @@ class Mips(IsaDefinition):
 
     def instruction_addi(self, ifield):
         'add immediate : 001000 sssss ttttt iiiiiiiiiiiiiiii : addi $t $s !i'
+        self.R[ifield.t] = self.R[ifield.s] + sign_extend(ifield.i, 16)
+
+    def instruction_addiu(self, ifield):
+        'add immediate unsigned : 001001 sssss ttttt iiiiiiiiiiiiiiii : addiu $t $s !i'
         self.R[ifield.t] = self.R[ifield.s] + sign_extend(ifield.i, 16)
 
     def instruction_nop(self, ifield):

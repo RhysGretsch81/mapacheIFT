@@ -1,6 +1,8 @@
 ''' Generic Assembler. '''
 
 import re
+import types
+
 from helpers import bit_select, log2, align
 from helpers import ISADefinitionError, AssemblyError
 
@@ -10,17 +12,18 @@ class Assembler:
     def __init__(self, isa):
         self.isa = isa
         self.END_OF_LINE = object()
+        self.labels = {}
 
     def assemble(self, program, text_start_address, data_start_address):
         ''' Return a list of byte-encoded assembly from source. '''
-        labels = {}
+        self.labels = {}  # reset all the labels  TODO: clear the breakpoints?
         tokenized_program = list(self.tokenize(program))
-        data = self.assemble_data(labels, tokenized_program, data_start_address)
-        self.set_text_labels(labels, tokenized_program, text_start_address)
-        text = self.assemble_text(labels, tokenized_program)
+        data = self.assemble_data(tokenized_program, data_start_address)
+        self.set_text_labels(tokenized_program, text_start_address)
+        text = self.assemble_text(tokenized_program)
         return text, data
 
-    def assemble_data(self, labels, tokenized_program, data_start_address):
+    def assemble_data(self, tokenized_program, data_start_address):
         ''' Return the data segment bytes and update the label table. '''
         data_bytes = []
         address = data_start_address
@@ -30,7 +33,7 @@ class Assembler:
             address += len(padding)
             data_bytes.append(padding)
             # set the label to point to the padded location and append bytes
-            labels[label] = address
+            self.labels[label] = address
             address += len(coded_data)
             data_bytes.append(coded_data)
         final_data = b''.join(data_bytes)
@@ -56,7 +59,6 @@ class Assembler:
             if token == self.END_OF_LINE:
                 if dline == []:
                     continue
-                print(dline)
                 label = self.parse_label(dline[0], lineno)
                 type, value = self.code_data(dline[1], dline[2], lineno)
                 yield lineno, label, type, value 
@@ -67,6 +69,7 @@ class Assembler:
             raise AssemblyError(f'Incomplete data "{dline}" at line {lineno}.')
 
     def parse_label(self, label, lineno):
+        ''' Return the name of the label, raising an error if a problem exists. '''
         if re.match(f'^{asm_id}:$', label):
             return label[:-1]
         else:
@@ -88,23 +91,23 @@ class Assembler:
         else:
             raise AssemblyError(f'Unknown data type "{type}" at line {lineno}.')
 
-    def set_text_labels(self, labels, tokenized_program, text_start_address):
+    def set_text_labels(self, tokenized_program, text_start_address):
         ''' Walk the instructions and set the text label addresses. '''
         instr_number = 0
         for lineno, instr in self.instructions(tokenized_program):
             if re.match(f'^{asm_id}:$', instr[0]):
                 label_name = instr[0][:-1]
-                labels[label_name] = instr_number * self.isa.isize + text_start_address
+                self.labels[label_name] = instr_number * self.isa.isize + text_start_address
             else:
                 instr_number += 1
 
-    def assemble_text(self, labels, tokenized_program):
+    def assemble_text(self, tokenized_program):
         ''' Given the labels and tokenized program, return a list of bytes for the text segment. '''
         instr_bytes = []
         for lineno, instr in self.instructions(tokenized_program):
             if re.match(f'^{asm_id}:$', instr[0]):
                 continue
-            coded_instr = self.machine_code(instr, labels)
+            coded_instr = self.machine_code(instr)
             instr_bytes.append(coded_instr)
         text = b''.join(instr_bytes)
         return text
@@ -116,10 +119,30 @@ class Assembler:
             if token!=self.END_OF_LINE and re.match(f'^{asm_id}:$', token):
                 yield lineno, [token]
             elif token is self.END_OF_LINE and instr:
-                yield lineno, instr
+                if self.is_pseudo(instr):
+                    for pseudo_instr in self.expand_pseudo(instr):
+                        yield lineno, pseudo_instr.split()
+                else:
+                    yield lineno, instr
                 instr = []
             elif token!=self.END_OF_LINE:
                 instr.append(token)
+
+    def is_pseudo(self, instr):
+        ''' Return True if instr is a psuedo-instruction. '''
+        iname = instr[0]
+        pseudofunc = getattr(self.isa, f'pseudo_{iname}', None)
+        return pseudofunc is not None
+
+    def expand_pseudo(self, instr):
+        ''' Invokes the pseudo-instruction generator for instr. '''
+        iname, iops = instr[0], instr[1:]
+        pseudofunc = getattr(self.isa, f'pseudo_{iname}')
+        asm = self.isa._extract_asm(pseudofunc)
+        asmops = asm.split()[1:]
+        optable = self.machine_code_make_optable(asmops, iops)
+        ifield = types.SimpleNamespace(**optable)
+        yield from pseudofunc(ifield)
 
     def segment(self, tokenized_program, segment_name):
         ''' Generate the tokens corresponding to the specified segement. '''
@@ -132,7 +155,7 @@ class Assembler:
     def tokenize(self, program):
         ''' Break program text into tokens by whitespace, including special EOL. '''
         for line_number, line in enumerate(program.splitlines()):
-            # this is a hack and will mess up string constants for certain
+            # TODO: this is a hack and will mess up string constants for certain
             line = line.split('#')[0] # remove everything after "#"
             line = re.sub(',',' ',line) # remove all commas
             tokens = line.split()
@@ -142,23 +165,23 @@ class Assembler:
                 yield line_number, token
             yield line_number, self.END_OF_LINE
 
-    def machine_code(self, tokens, labels):
+    def machine_code(self, tokens):
         '''Takes a list of assembly tokens and dictionary of labels, returns bytearray of encoded instruction'''
         # example: machine_code(['addi','$t0','$t0','4'], {}) -> b'\x21\x08\x00\x04'
-        iname = tokens[0]
-        iops = tokens[1:]
-        for ifunc in self.isa._ifuncs:
-            if ifunc.__name__ == f'instruction_{iname}':
-                pattern = self.isa._extract_pattern(ifunc)
-                asm = self.isa._extract_asm(ifunc)
-                asmops = asm.split()[1:]
-                return self.machine_code_pack(pattern, asmops, iops, labels)
-        raise ISADefinitionError(f'Cannot find instruction "{iname}".')
+        print(tokens)
+        iname, iops = tokens[0], tokens[1:]
+        ifunc = getattr(self.isa, f'instruction_{iname}', None)
+        if ifunc is None:
+            raise AssemblyError(f'Unknown instruction "{iname} {" ".join(iops)}".')
+        pattern = self.isa._extract_pattern(ifunc)
+        asm = self.isa._extract_asm(ifunc)
+        asmops = asm.split()[1:]        
+        return self.machine_code_pack(pattern, asmops, iops)
 
-    def machine_code_pack(self, pattern, asmops, iops, labels):
+    def machine_code_pack(self, pattern, asmops, iops):
         '''Pack the instruction operands into the assembly instruction.'''
         instr = 0
-        optable = self.machine_code_make_optable(asmops, iops, labels)
+        optable = self.machine_code_make_optable(asmops, iops)
         counttable = {p:pattern.count(p) for p in optable}
         for p in pattern:
             if p=='0':
@@ -178,7 +201,7 @@ class Assembler:
         encoded_instr_as_bytes = instr.to_bytes(self.isa.isize, byteorder=self.isa.endian, signed=False)
         return encoded_instr_as_bytes
 
-    def machine_code_make_optable(self, asmops, iops, labels):
+    def machine_code_make_optable(self, asmops, iops):
         optable = {}
         if len(asmops) != len(iops):
             raise AssemblyError(f'Cannot match "{asmops}" to "{iops}.')
@@ -187,7 +210,7 @@ class Assembler:
                 rnum = self.isa.register_number_from_name(op_input)
                 optable[op_def[1:]] = rnum
             elif op_def.startswith('@'):
-                optable[op_def[1:]] = labels[op_input] >> log2(self.isa.isize)
+                optable[op_def[1:]] = self.labels[op_input] >> log2(self.isa.isize)
             elif op_def.startswith('!'):
                 optable[op_def[1:]] = int(op_input, 16)
             else:
