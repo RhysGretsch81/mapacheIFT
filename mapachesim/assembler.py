@@ -24,20 +24,22 @@ class Assembler:
         ''' Return the data segment bytes and update the label table. '''
         data_bytes = []
         address = data_start_address
-        for lineno, label, type, value in self.program_data(tokenized_program):
+        for lineno, label, type, coded_data in self.program_data(tokenized_program):
+            # add padding as appropriate
             padding = self.pad_to_align(address, type)
             address += len(padding)
             data_bytes.append(padding)
+            # set the label to point to the padded location and append bytes
             labels[label] = address
-            coded_data = self.code_data(type, value, lineno)
             address += len(coded_data)
             data_bytes.append(coded_data)
         final_data = b''.join(data_bytes)
         return final_data
 
     def pad_to_align(self, address, type):
+        ''' Return the bytes necessary to pad the address for the correct type.'''
         # TODO: should these data types and alignments be ISA specific?
-        if type in ['word', 'float']:
+        if type in ['word']:
             alignment = 4
         elif type in ['half']:
             alignment = 2
@@ -48,16 +50,41 @@ class Assembler:
         return padding
 
     def program_data(self, tokenized_program):
-        pass
+        ''' Given the tokenized program, return data specifiers for assembly. '''
+        dline = []
+        for lineno, token in self.segment(tokenized_program, '.data'):
+            if token == self.END_OF_LINE:
+                if dline == []:
+                    continue
+                print(dline)
+                label = self.parse_label(dline[0], lineno)
+                type, value = self.code_data(dline[1], dline[2], lineno)
+                yield lineno, label, type, value 
+                dline = []
+            else:
+                dline.append(token)
+        if dline != []:
+            raise AssemblyError(f'Incomplete data "{dline}" at line {lineno}.')
+
+    def parse_label(self, label, lineno):
+        if re.match(f'^{asm_id}:$', label):
+            return label[:-1]
+        else:
+            raise AssemblyError(f'Bad data label at line {lineno}.')
 
     def code_data(self, type, value, lineno):
+        ''' Encode the provided assembly data as bytestring. '''
         # TODO should the word size be an ISA specific thing?
-        if type == 'asciiz':
-            return value.encode('ascii') + b'\x00'
-        elif type == 'word':
-            return value.to_bytes(4, self.isa.endian)
-        elif type == 'half':
-            return value.to_bytes(2, self.isa.endian)
+        # TODO More error checking here 
+        if type == '.asciiz':
+            if value[0]!='"' or value[-1]!='"':
+                raise AssemblyError(f'Bad string constant at line {lineno}.')
+            naked_string = value[1:-1]
+            return 'asciiz', naked_string.encode('ascii') + b'\x00'
+        elif type == '.word':
+            return 'word', int(value).to_bytes(4, self.isa.endian)
+        elif type == '.half':
+            return 'half', int(value).to_bytes(2, self.isa.endian)
         else:
             raise AssemblyError(f'Unknown data type "{type}" at line {lineno}.')
 
@@ -97,7 +124,7 @@ class Assembler:
     def segment(self, tokenized_program, segment_name):
         ''' Generate the tokens corresponding to the specified segement. '''
         for lineno, token in tokenized_program:
-            if token!=self.END_OF_LINE and re.match(f'^\.{asm_id}$', token):
+            if token in ['.data','.text']:
                 current_segment = token
             elif current_segment == segment_name:
                 yield lineno, token
@@ -138,6 +165,8 @@ class Assembler:
                 instr = (instr<<1)
             elif p=='1':
                 instr = (instr<<1) | 0x1
+            elif p=='-':
+                instr = (instr<<1) 
             else:
                 value = optable[p]
                 bitpos = counttable[p]-1

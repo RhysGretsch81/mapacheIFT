@@ -1,10 +1,9 @@
-.data
+.data 
 
-msg: .asciiz "Enter a number"
-answer: .asciiz "\nFactorial is: "
+msg: .asciiz "Enter_a_number"
+answer: .asciiz "\nFactorial_is:_"
 
 .text
-
 main:
     li $v0, 4
     la $a0, msg

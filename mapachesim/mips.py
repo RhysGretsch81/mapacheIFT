@@ -38,36 +38,36 @@ class Mips(IsaDefinition):
     # R-format Instructions
 
     def instruction_sll(self, ifield):
-        'shift left logical : 000000 xxxxx ttttt ddddd hhhhh 000000: sll $d $t !h'
+        'shift left logical : 000000 ----- ttttt ddddd hhhhh 000000: sll $d $t !h'
         self.R[ifield.d] = self.R[ifield.t] << ifield.h
 
     def instruction_srl(self, ifield):
-        'shift right logical : 000000 xxxxx ttttt ddddd hhhhh 000010: srl $d $t !h'
+        'shift right logical : 000000 ----- ttttt ddddd hhhhh 000010: srl $d $t !h'
         self.R[ifield.d] = self.R[ifield.t] >> ifield.h
 
     def instruction_sra(self, ifield):
-        'shift right arithmetic : 000000 xxxxx ttttt ddddd hhhhh 000011: sra $d $t !h'
+        'shift right arithmetic : 000000 ----- ttttt ddddd hhhhh 000011: sra $d $t !h'
         self.R[ifield.d] = sign_extend(self.R[ifield.t],32) >> ifield.h
 
     def instruction_sllv(self, ifield):
-        'shift left logical variable : 000000 sssss ttttt ddddd xxxxx 000100: sllv $d $t $s'
+        'shift left logical variable : 000000 sssss ttttt ddddd ----- 000100: sllv $d $t $s'
         self.R[ifield.d] = self.R[ifield.t] << self.R[ifield.s]
 
     def instruction_srlv(self, ifield):
-        'shift right logical variable : 000000 sssss ttttt ddddd xxxxx 000110: srlv $d $t $s'
+        'shift right logical variable : 000000 sssss ttttt ddddd ----- 000110: srlv $d $t $s'
         self.R[ifield.d] = self.R[ifield.t] >> self.R[ifield.s]
 
     def instruction_srav(self, ifield):
-        'shift right arithmetic variable : 000000 sssss ttttt ddddd xxxxx 000111: srav $d $t $s'
+        'shift right arithmetic variable : 000000 sssss ttttt ddddd ----- 000111: srav $d $t $s'
         self.R[ifield.d] = sign_extend(self.R[ifield.t],32) >> self.R[ifield.s]
 
     def instruction_jr(self, ifield):
-        'jump register : 000000 sssss xxxxx xxxxx xxxxx 001000: jr $s'
+        'jump register : 000000 sssss ----- ----- ----- 001000: jr $s'
         self.invalid_when(self.R[ifield.s] % 4 != 0, 'jr: R[$rs] must be a multiple of 4')
         self.PC = self.R[ifield.s]
 
     def instruction_jalr(self, ifield):
-        'jump-and-link register: 000000 sssss xxxxx ddddd xxxxx 001001: jalr $d $s'
+        'jump-and-link register: 000000 sssss ----- ddddd ----- 001001: jalr $d $s'
         self.invalid_when(self.R[ifield.s] % 4 != 0, 'jalr: R[$rs] must be a multiple of 4')
         self.invalid_when(ifield.s == ifield.d, 'jalr: $rs and $rd must be different registers')
         tmp = self.R[ifield.s]
@@ -75,7 +75,7 @@ class Mips(IsaDefinition):
         self.PC = tmp
 
     def instruction_syscall(self, ifield):
-        'system call : 000000 xxxxx xxxxx xxxxx xxxxx 001100: syscall'
+        'system call : 000000 ----- ----- ----- ----- ----- 001100: syscall'
         v0, a0, a1 = 2, 4, 5
         if self.R[v0] == 1:  # print integer
             print(sign_extend(self.R[a0],32))
@@ -104,7 +104,7 @@ class Mips(IsaDefinition):
             self.invalid_when(True, 'syscall: invalid system call service')
 
     def instruction_add(self, ifield):
-        'add : 000000 sssss ttttt ddddd xxxxx 100000: addi $d $s $t'
+        'add : 000000 sssss ttttt ddddd ----- 100000: addi $d $s $t'
         self.R[ifield.d] = self.R[ifield.s] + self.R[ifield.t] 
 
     # J-format Instructions

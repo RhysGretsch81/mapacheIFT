@@ -75,7 +75,7 @@ class  IsaDefinition:
                 return None
             elif bpattern=='1' and bit==0:
                 return None
-            else:
+            elif bpattern!='-':
                 fields[bpattern] = (fields[bpattern] << 1) | bit
         ifield = types.SimpleNamespace(**fields)
         return ifield
