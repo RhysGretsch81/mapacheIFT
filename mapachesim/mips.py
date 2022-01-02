@@ -1,6 +1,8 @@
 ''' MIPS machine definition. '''
 
-from helpers import sign_extend, bit_select
+import string
+
+from helpers import sign_extend, bit_select, ExecutionError
 from isa import IsaDefinition
 from assembler import Assembler
 
@@ -21,19 +23,19 @@ class Mips(IsaDefinition):
         self.make_register('PC', 32)
         self.make_register('HI', 32)
         self.make_register('LO', 32)
-        self.jumps = set([self.instruction_j, self.instruction_jr, self.instruction_jalr])
+        self.jumps = set([self.instruction_j, self.instruction_jr, self.instruction_jalr, self.instruction_beq])
         self.endian = 'big'
         self.assembler = Assembler(self)
 
-    def finalize_execution(self, decoded_instr):
-        ifunction, ifields = decoded_instr
+    def finalize_execution(self, decoded_instruction):
+        ifunction, ifields = decoded_instruction
         self.R[0] = 0  # keep regisiter 0 value as zero
         if ifunction not in self.jumps:
             self.PC = self.PC + 4
 
     def invalid_when(self, condition, message):
         if condition:
-            raise ValueError(message)
+            raise ExecutionError(message)
 
     # Pseudo Instructions
 
@@ -112,7 +114,7 @@ class Mips(IsaDefinition):
             address = self.R[a0]
             printable_chars = set(bytes(string.printable, 'ascii'))
             for i in range(maxstring):
-                next_byte = self.mem_read(start_addr, 1)
+                next_byte = self.mem_read(address, 1)
                 if next_byte == b'\x00':
                     break
                 elif next_byte in printable_chars:
@@ -130,6 +132,16 @@ class Mips(IsaDefinition):
             raise NotImplementedError('exit')
         else:
             self.invalid_when(True, 'syscall: invalid system call service')
+
+    def instruction_mflo(self, ifield):
+        'move from lo : 000000 ----- ----- ddddd ----- 010010: mflo $d'
+        self.R[ifield.d] = self.LO
+
+    def instruction_mult(self, ifield):
+        'multiply : 000000 sssss ttttt ----- ----- 011000: mult $s $t'
+        result = self.R[ifield.s] * self.R[ifield.t]
+        self.LO = result
+        self.HI = result>>32
 
     def instruction_add(self, ifield):
         'add : 000000 sssss ttttt ddddd ----- 100000: add $d $s $t'
@@ -150,6 +162,22 @@ class Mips(IsaDefinition):
 
     # I-format Instructions
 
+    #def instruction_beq(self, ifield):
+    #    'branch if equal : 000100 sssss ttttt aaaaaaaaaaaaaaaa : beq $s $t ^a'
+    #    newpc = self.PC + 4
+    #    if self.R[ifield.s] == self.R[ifield.t]:
+    #        newpc += sign_extend(ifield.a, 16) << 2
+    #    self.PC = newpc
+
+    def instruction_beq(self, ifield):
+        'branch if equal : 000100 sssss ttttt aaaaaaaaaaaaaaaa : beq $s $t @a'
+        # TODO: this should be PC-relative addressing! started above, but using absolute for now
+        newpc = self.PC + 4
+        if self.R[ifield.s] == self.R[ifield.t]:
+            upper_bits = bit_select(self.PC + 4, 31, 16)
+            newpc = upper_bits + (ifield.a << 2)
+        self.PC = newpc
+
     def instruction_addi(self, ifield):
         'add immediate : 001000 sssss ttttt iiiiiiiiiiiiiiii : addi $t $s !i'
         self.R[ifield.t] = self.R[ifield.s] + sign_extend(ifield.i, 16)
@@ -165,4 +193,17 @@ class Mips(IsaDefinition):
     def instruction_lui(self, ifield):
         'load upper immediate : 001111 ----- ttttt iiiiiiiiiiiiiiii : lui $t !i'
         self.R[ifield.t] = ifield.i << 16
-        raise NotImplementedError
+
+    def instruction_lw(self, ifield):
+        # TODO: add "imm(addr)" format 
+        'load word : 100010 sssss ttttt iiiiiiiiiiiiiiii : lw $t !i $s'
+        addr = self.R[ifield.s] + sign_extend(ifield.i, 16)
+        self.invalid_when(addr % 4 != 0, 'lw: R[$rs]+immed must be a multiple of 4')
+        self.R[ifield.t] = self.mem_read_32bit(addr)
+
+    def instruction_sw(self, ifield):
+        # TODO: add "imm(addr)" format 
+        'store word : 101011 sssss ttttt iiiiiiiiiiiiiiii : sw $t !i $s'
+        addr = self.R[ifield.s] + sign_extend(ifield.i, 16)
+        self.invalid_when(addr % 4 != 0, 'sw: R[$rs]+immed must be a multiple of 4')
+        self.mem_write_32bit(addr, value=self.R[ifield.t])

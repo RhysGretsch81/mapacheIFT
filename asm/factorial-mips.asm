@@ -10,7 +10,7 @@ main:
     syscall
 
     li $v0, 5
-    syscall
+    # syscall  # take factorial of 5 until string input works
 
     move $a0, $v0
     li $v0, 1
@@ -34,12 +34,12 @@ main:
 calculate_factorial:
     addi $sp, $sp, -4
     sw $ra, 0($sp)
-
     li $v0, 1
 
 multiply:
-    beq $a0, $zero, return
-    mul $v0, $v0, $a0
+    beq $a0, $0, return
+    mult $v0, $a0
+    mflo $v0
     addi $a0, $a0, -1
     j multiply
 

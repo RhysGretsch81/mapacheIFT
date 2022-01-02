@@ -136,9 +136,12 @@ class  IsaDefinition:
             elif part.startswith('@'):
                 addr = operand_field(part, '@')
                 instruction.append(f'{hex(addr<<2)}')
+            elif part.startswith('^'):
+                addr = operand_field(part, '^')
+                instruction.append(f'+{hex(addr<<2)}')
             elif part.startswith('!'):
                 immed = operand_field(part, '!')
-                instruction.append(f'{hex(immed)}')
+                instruction.append(f'{immed}')
             else:
                 raise ISADefinitionError(f'Unknown operand specifier: "{part}" in "{asm_pattern}"')
         return str.join(' ', instruction)

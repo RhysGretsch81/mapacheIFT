@@ -160,6 +160,7 @@ class Assembler:
             # TODO: this is a hack and will mess up string constants for certain
             line = line.split('#')[0] # remove everything after "#"
             line = re.sub(',',' ',line) # remove all commas
+            line = re.sub('[\(\)]',' ',line) # remove all parens (hack!)
             tokens = line.split()
             if len(tokens)==0:
                 continue
@@ -207,18 +208,30 @@ class Assembler:
         if len(asmops) != len(iops):
             raise AssemblyError(f'Cannot match arguments "{" ".join(iops)}" to pattern "{" ".join(asmops)}" at line {self.current_line}.')
         for op_def, op_input in zip(asmops, iops):
+            # Registers
+            field_name = op_def[1:]
             if op_def.startswith('$'):
                 rnum = self.isa.register_number_from_name(op_input)
                 if rnum is None:
                     raise AssemblyError(f'Unknown register name "{op_input}" at line {self.current_line}.')
-                optable[op_def[1:]] = rnum
+                optable[field_name] = rnum
+            # 0-Relative Addressing
             elif op_def.startswith('@'):
-                optable[op_def[1:]] = self.labels[op_input] >> log2(self.isa.isize)
+                if op_input not in self.labels:
+                    raise AssemblyError(f'Unknown label "{op_input}" at line {self.current_line}.')
+                optable[field_name] = self.labels[op_input] >> log2(self.isa.isize)
+            # PC-Relative Addressing
+            elif op_def.startswith('^'):
+                if op_input not in self.labels:
+                    raise AssemblyError(f'Unknown label "{op_input}" at line {self.current_line}.')
+                optable[field_name] = self.labels[op_input] >> log2(self.isa.isize)
+                raise NotImplementedError  # this is going to require some re-thinking
+            # Decimal Immediates
             elif op_def.startswith('!'):
                 try:
-                    optable[op_def[1:]] = int(op_input, 16)
+                    optable[field_name] = int(op_input, 10)
                 except ValueError:
-                    raise AssemblyError(f'Cannot parse "{op_input}" as base-16 integer constant at line {self.current_line}.')
+                    raise AssemblyError(f'Cannot parse "{op_input}" as base-10 integer constant at line {self.current_line}.')
             else:
                 raise AssemblyError(f'Unknown op_def "{op_def}" in "{asmops}" at line {self.current_line}.')
         return optable

@@ -6,6 +6,9 @@ class ISADefinitionError(Exception):
 class AssemblyError(Exception):
     pass
 
+class ExecutionError(Exception):
+    pass
+
 class MapacheInternalError(Exception):
     pass
 

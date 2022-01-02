@@ -15,6 +15,8 @@ ________________________________________________________________________________
 ______________________________________________________________________________________
 # To be fixed for handling multiple architectures reliable
 
+* Refactor to add "instrcution name from func" and "func from instruction name" functions to isa.py
+
 * Add checks to ensure the function name and op in docstring match (to catch copy/paste errors)
 
 * Change register printing to account for non-32bit register sizes
