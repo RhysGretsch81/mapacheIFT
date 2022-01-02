@@ -69,6 +69,16 @@ class  IsaDefinition:
                 for i in range(size):
                     yield rnames[i], bits, getattr(self, name)[i]
 
+    def reset_registers(self):
+        '''Reset all of the registers to zero.'''
+        for rtype, name, bits, size, rnames in self._reg_list:
+            if rtype=='reg':
+                setattr(self, name, 0)
+            else:
+                assert rtype=='file'
+                for i in range(size):
+                    getattr(self, name)[i] = 0
+
     def register_number_from_name(self, name_in_code):
         for rtype,name,bits,size,rname in self._reg_list:
             if rtype=='file':
@@ -149,6 +159,11 @@ class  IsaDefinition:
                 raise ISADefinitionError(f'Unknown operand specifier: "{part}" in "{asm_pattern}"')
         return str.join(' ', instruction)
 
+    def invalid_when(self, condition, message):
+        '''If condition is true, raise ExecutionError with specified message.'''
+        if condition:
+            raise ExecutionError(message)
+
     def fetch(self):
         '''Fetch the next instruction at PC and return as an array of bytes.'''
         return self.mem_read(self.PC, self.isize)
@@ -190,10 +205,14 @@ class  IsaDefinition:
 
     def mem_read(self, start_addr, size):
         '''Read a region of memory and return an array of bytes.'''
+        if size <= 0:
+            raise ISADefinitionError(f'memory access of size "{size}" not supported')
+        self.invalid_when( start_addr+size > len(self._mem), 'Segmentation Fault' )
         return self._mem[start_addr:start_addr+size]
 
     def mem_write(self, start_addr, data):
         '''Write an array of bytes into memory.'''
+        self.invalid_when( start_addr+len(data) > len(self._mem), 'Segmentation Fault' )
         self._mem[start_addr:start_addr+len(data)] = data
 
     # Some simple wrappers for mem_read and mem_write for readability

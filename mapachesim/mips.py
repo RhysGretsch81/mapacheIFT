@@ -34,9 +34,10 @@ class Mips(IsaDefinition):
         if ifunction not in self.jumps:
             self.PC = self.PC + 4
 
-    def invalid_when(self, condition, message):
-        if condition:
-            raise ExecutionError(message)
+    def reset_registers(self):
+        super().reset_registers()
+        self.R[28] = 0x10008000 # same value as SPIM at reset
+        self.R[29] = 0x7fffeffc # same value as SPIM at reset
 
     # Pseudo Instructions
 

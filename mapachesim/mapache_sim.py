@@ -202,6 +202,8 @@ class MapacheShell(cmd.Cmd):
             self.load_text(code)
         except FileNotFoundError as e:
             self.error_msg(f'Error: Cannot find file "{filename}" to load.')
+        except IsADirectoryError as e:
+            self.error_msg(f'Error: Cannot load file "{filename}" because it is a directory.')
         except AssemblyError as e:
             self.error_msg(f'Assembly Error: {e}')
 
@@ -232,8 +234,9 @@ class MapacheShell(cmd.Cmd):
 
     def do_run(self, arg):
         'Run the loaded program. e.g. "run"'
+        #self.machine.reset_registers()
+        print('Reminder: reset registers')
         self.machine.PC = self.text_start_address
-        print('TODO REMINDER: reset the registers')
         self.simulate()
 
     def do_continue(self, arg):
