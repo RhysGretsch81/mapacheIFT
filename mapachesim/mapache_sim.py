@@ -3,6 +3,8 @@
 import cmd
 import signal
 
+from helpers import AssemblyError
+
 import mips
 import toy
 import m248
@@ -178,7 +180,9 @@ class MapacheShell(cmd.Cmd):
             self.load_data(data)
             self.load_text(code)
         except FileNotFoundError as e:
-            self.error_msg(f'Error: Cannot find file "{filename}" to load. [{e}]')
+            self.error_msg(f'Error: Cannot find file "{filename}" to load.')
+        except AssemblyError as e:
+            self.error_msg(f'Assembly Error: {e}')
 
 
     def do_step(self, arg):

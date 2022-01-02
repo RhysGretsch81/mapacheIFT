@@ -46,7 +46,18 @@ class Mips(IsaDefinition):
             upper = const & 0xffff0000
             lower = const & 0x0000ffff
             yield f'lui ${ifield.d} {str(upper)}'
-            yield f'ori ${ifield.d} {str(lower)}'
+            yield f'ori ${ifield.d} ${ifield.d} {str(lower)}'
+
+    def pseudo_la(self, ifield):
+        'load address : pseudo : la $d @a'
+        upper = ifield.a & 0xffff0000
+        lower = ifield.a & 0x0000ffff
+        yield f'lui ${ifield.d} {str(upper)}'
+        yield f'ori ${ifield.d} ${ifield.d} {str(lower)}'
+
+    def pseudo_move(self, ifield):
+        'move : pseudo : move $d $s'
+        yield f'add ${ifield.d} ${ifield.s} $0'
 
     # R-format Instructions
 
@@ -88,7 +99,7 @@ class Mips(IsaDefinition):
         self.PC = tmp
 
     def instruction_syscall(self, ifield):
-        'system call : 000000 ----- ----- ----- ----- ----- 001100: syscall'
+        'system call : 000000 ----- ----- ----- ----- 001100: syscall'
         v0, a0, a1 = 2, 4, 5
         if self.R[v0] == 1:  # print integer
             print(sign_extend(self.R[a0],32))
@@ -117,13 +128,19 @@ class Mips(IsaDefinition):
             self.invalid_when(True, 'syscall: invalid system call service')
 
     def instruction_add(self, ifield):
-        'add : 000000 sssss ttttt ddddd ----- 100000: addi $d $s $t'
+        'add : 000000 sssss ttttt ddddd ----- 100000: add $d $s $t'
         self.R[ifield.d] = self.R[ifield.s] + self.R[ifield.t] 
 
     # J-format Instructions
 
     def instruction_j(self, ifield):
         'jump : 000010 aaaaaaaaaaaaaaaaaaaaaaaaaa : j @a'
+        upper_bits = bit_select(self.PC + 4, 31, 28)
+        self.PC = upper_bits + (ifield.a << 2)
+
+    def instruction_jal(self, ifield):
+        'jump and link : 000011 aaaaaaaaaaaaaaaaaaaaaaaaaa : jal @a'
+        self.R[31] = self.PC + 4
         upper_bits = bit_select(self.PC + 4, 31, 28)
         self.PC = upper_bits + (ifield.a << 2)
 
@@ -136,6 +153,15 @@ class Mips(IsaDefinition):
     def instruction_addiu(self, ifield):
         'add immediate unsigned : 001001 sssss ttttt iiiiiiiiiiiiiiii : addiu $t $s !i'
         self.R[ifield.t] = self.R[ifield.s] + sign_extend(ifield.i, 16)
+
+    def instruction_ori(self, ifield):
+        'or immediate : 001101 sssss ttttt iiiiiiiiiiiiiiii : ori $t $s !i'
+        self.R[ifield.t] = self.R[ifield.s] | ifield.i
+
+    def instruction_lui(self, ifield):
+        'load upper immediate : 001111 ----- ttttt iiiiiiiiiiiiiiii : lui $t !i'
+        self.R[ifield.t] = ifield.i << 16
+        raise NotImplementedError
 
     def instruction_nop(self, ifield):
         'nop : 000000 00000 00000 00000 00000 000000 : nop'

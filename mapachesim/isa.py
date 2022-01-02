@@ -21,7 +21,17 @@ class  IsaDefinition:
         self.text_start_address = 0x10000
         self.data_start_address = 0x40000
         self.assembler = assembler.Assembler(self)
-        # TODO: add sanity check, look for "psuedo" instead of "pseudo"
+
+        # some sanity checks
+        if [f for f in dir(self) if f.startswith('psuedo_')]:
+            raise ISADefinitionError('misspelled pseudo!')
+        for f in dir(self):
+            if f.startswith('instruction_'):
+                func_op = f[12:]
+                def_op = self._extract_asm(getattr(self,f)).split()[0]
+                if func_op != def_op:
+                    raise ISADefinitionError(f'{f} name "{func_op}" and def "{def_op}" differ.')
+        # TODO check that bit-patterns don't overlap
 
     def make_register(self, name, bits=32):
         '''Add a special purpose register to the machine specification.'''
@@ -57,8 +67,8 @@ class  IsaDefinition:
             try:
                 return int(name_in_code[1:])
             except ValueError:
-                pass  # we are about to generate an error anyways
-        raise AssemblyError(f'unknown register "{name_in_code}".')
+                pass
+        return None
 
     def _extract_pattern(self, func):
         '''Extract an patterns from the instruction function docstring.'''
