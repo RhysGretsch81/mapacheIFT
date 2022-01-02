@@ -1,20 +1,17 @@
 .data 
 
-msg: .asciiz "Enter_a_number"
-answer: .asciiz "\nFactorial_is:_"
+msg: .asciiz "\nEnter a number: "
+answer: .asciiz "\nFactorial is: "
 
 .text
 main:
     li $v0, 4
     la $a0, msg
-    syscall
+    syscall  # print msg
 
     li $v0, 5
     # syscall  # take factorial of 5 until string input works
-
     move $a0, $v0
-    li $v0, 1
-    syscall
 
     jal calculate_factorial
     move $a1, $v0

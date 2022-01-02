@@ -15,6 +15,11 @@ class MapacheInternalError(Exception):
 class MapacheError(Exception):
     pass
 
+# should be replaced with a proper sentinel value ala:
+# https://www.python.org/dev/peps/pep-0661/#reference-github-repo
+ExecutionComplete = object();
+
+
 #-----------------------------------------------------------------------
 def mask(n):
     '''Return an n-bit bit mask (e.g mask(3) returns 0x7).'''

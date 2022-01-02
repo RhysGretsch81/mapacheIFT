@@ -2,7 +2,8 @@
 
 import string
 
-from helpers import sign_extend, bit_select, ExecutionError
+from helpers import sign_extend, bit_select
+from helpers import ExecutionError, ExecutionComplete
 from isa import IsaDefinition
 from assembler import Assembler
 
@@ -51,9 +52,9 @@ class Mips(IsaDefinition):
             yield f'ori ${ifield.d} ${ifield.d} {str(lower)}'
 
     def pseudo_la(self, ifield):
-        'load address : pseudo : la $d @a'
-        upper = ifield.a & 0xffff0000
-        lower = ifield.a & 0x0000ffff
+        'load address : pseudo : la $d &a'
+        upper = (ifield.a >> 16) & 0xffff
+        lower = ifield.a & 0xffff
         yield f'lui ${ifield.d} {str(upper)}'
         yield f'ori ${ifield.d} ${ifield.d} {str(lower)}'
 
@@ -112,7 +113,7 @@ class Mips(IsaDefinition):
         elif self.R[v0] == 4:  # print string
             maxstring = 1024
             address = self.R[a0]
-            printable_chars = set(bytes(string.printable, 'ascii'))
+            printable_chars = bytes(string.printable, 'ascii')
             for i in range(maxstring):
                 next_byte = self.mem_read(address, 1)
                 if next_byte == b'\x00':
@@ -129,7 +130,7 @@ class Mips(IsaDefinition):
         elif self.R[v0] == 8:  # read string
             raise NotImplementedError('read string')
         elif self.R[v0] == 10:  # exit
-            raise NotImplementedError('exit')
+            return ExecutionComplete
         else:
             self.invalid_when(True, 'syscall: invalid system call service')
 
@@ -174,7 +175,7 @@ class Mips(IsaDefinition):
         # TODO: this should be PC-relative addressing! started above, but using absolute for now
         newpc = self.PC + 4
         if self.R[ifield.s] == self.R[ifield.t]:
-            upper_bits = bit_select(self.PC + 4, 31, 16)
+            upper_bits = bit_select(self.PC + 4, 31, 18)
             newpc = upper_bits + (ifield.a << 2)
         self.PC = newpc
 

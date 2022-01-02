@@ -2,6 +2,8 @@
 
 import re
 import types
+import shlex
+import codecs
 
 from helpers import bit_select, log2, align
 from helpers import ISADefinitionError, AssemblyError
@@ -14,7 +16,7 @@ class Assembler:
         self.END_OF_LINE = object()
         self.labels = {}
         self.current_line = None
-
+        
     def assemble(self, program, text_start_address, data_start_address):
         ''' Return a list of byte-encoded assembly from source. '''
         self.labels = {}  # reset all the labels  TODO: clear the breakpoints?
@@ -84,7 +86,8 @@ class Assembler:
             if value[0]!='"' or value[-1]!='"':
                 raise AssemblyError(f'Bad string constant at line {self.current_line}.')
             naked_string = value[1:-1]
-            return 'asciiz', naked_string.encode('ascii') + b'\x00'
+            #return 'asciiz', naked_string.encode('ascii') + b'\x00'
+            return 'asciiz', codecs.escape_decode(naked_string)[0] + b'\x00'
         elif type == '.word':
             return 'word', int(value).to_bytes(4, self.isa.endian)
         elif type == '.half':
@@ -147,25 +150,28 @@ class Assembler:
 
     def segment(self, tokenized_program, segment_name):
         ''' Generate the tokens corresponding to the specified segement. '''
+        current_segment = None
         for lineno, token in tokenized_program:
             self.current_line = lineno
             if token in ['.data','.text']:
                 current_segment = token
             elif current_segment == segment_name:
                 yield token
+        if current_segment == None:
+            raise AssemblyError('Program contains no segments.')
 
     def tokenize(self, program):
         ''' Break program text into tokens by whitespace, including special EOL. '''
         for line_number, line in enumerate(program.splitlines(), start=1):
-            # TODO: this is a hack and will mess up string constants for certain
-            line = line.split('#')[0] # remove everything after "#"
-            line = re.sub(',',' ',line) # remove all commas
-            line = re.sub('[\(\)]',' ',line) # remove all parens (hack!)
-            tokens = line.split()
-            if len(tokens)==0:
+            lex = shlex.shlex(line)
+            lex.whitespace = ' \t\r\n,()' # right now we just use () as whitespace
+            lex.whitespace_split = True
+            token = lex.get_token()
+            if token == '':
                 continue
-            for token in tokens:
+            while token != '':
                 yield line_number, token
+                token = lex.get_token()
             yield line_number, self.END_OF_LINE
 
     def machine_code(self, tokens):
@@ -215,11 +221,16 @@ class Assembler:
                 if rnum is None:
                     raise AssemblyError(f'Unknown register name "{op_input}" at line {self.current_line}.')
                 optable[field_name] = rnum
-            # 0-Relative Addressing
+            # 0-Relative Addressing (Instruction Word Aligned)
             elif op_def.startswith('@'):
                 if op_input not in self.labels:
                     raise AssemblyError(f'Unknown label "{op_input}" at line {self.current_line}.')
                 optable[field_name] = self.labels[op_input] >> log2(self.isa.isize)
+            # 0-Relative Addressing (Byte Aligned)
+            elif op_def.startswith('&'):
+                if op_input not in self.labels:
+                    raise AssemblyError(f'Unknown label "{op_input}" at line {self.current_line}.')
+                optable[field_name] = self.labels[op_input]
             # PC-Relative Addressing
             elif op_def.startswith('^'):
                 if op_input not in self.labels:

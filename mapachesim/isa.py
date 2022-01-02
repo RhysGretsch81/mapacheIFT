@@ -5,7 +5,7 @@ import itertools
 import types
 
 import assembler
-from helpers import ISADefinitionError, AssemblyError
+from helpers import ISADefinitionError, AssemblyError, ExecutionError
 
 
 class  IsaDefinition:
@@ -136,6 +136,9 @@ class  IsaDefinition:
             elif part.startswith('@'):
                 addr = operand_field(part, '@')
                 instruction.append(f'{hex(addr<<2)}')
+            elif part.startswith('&'):
+                addr = operand_field(part, '&')
+                instruction.append(f'{hex(addr)}')
             elif part.startswith('^'):
                 addr = operand_field(part, '^')
                 instruction.append(f'+{hex(addr<<2)}')
@@ -156,12 +159,12 @@ class  IsaDefinition:
             ifield = self._pattern_match(ifunc, instr)
             if ifield is not None:
                 return ifunc, ifield
-        raise ISADefinitionError(f'Unable to decode bytes as instruction:"{instr}".')
+        raise ExecutionError(f'Unable to decode bytes as instruction: "{instr}".')
 
     def execute(self, decoded_instr):
         '''Execute a decoded instruction.'''
         ifunction, ifield = decoded_instr
-        ifunction(ifield)
+        return ifunction(ifield)
 
     def istring(self, decoded_instr):
         '''Return a string representation of a decoded instruction.'''
@@ -175,10 +178,10 @@ class  IsaDefinition:
         ipc = self.PC
         instr_mem = self.fetch()
         decoded_instr = self.decode(instr_mem)
-        self.execute(decoded_instr)
+        ireturn = self.execute(decoded_instr)
         if hasattr(self,'finalize_execution'):
             self.finalize_execution(decoded_instr)
-        return ipc, self.istring(decoded_instr)
+        return ipc, self.istring(decoded_instr), ireturn
 
     def mem_map(self, start_address, size):
         '''Map a region of physical memory into the simulator.'''
@@ -203,11 +206,11 @@ class  IsaDefinition:
     def mem_write_8bit(self, start_addr, value):
         self.mem_write(start_addr, int.to_bytes(value, 1, self.endian, signed=True))
     def mem_read_64bit(self, start_addr):
-        return int.from_bytes(self.mem_read(start_addr, 8), signed=True)
+        return int.from_bytes(self.mem_read(start_addr, 8), self.endian, signed=True)
     def mem_read_32bit(self, start_addr):
-        return int.from_bytes(self.mem_read(start_addr, 4), signed=True)
+        return int.from_bytes(self.mem_read(start_addr, 4), self.endian, signed=True)
     def mem_read_16bit(self, start_addr):
-        return int.from_bytes(self.mem_read(start_addr, 2), signed=True)
+        return int.from_bytes(self.mem_read(start_addr, 2), self.endian, signed=True)
     def mem_read_8bit(self, start_addr):
-        return int.from_bytes(self.mem_read(start_addr, 1), signed=True)
+        return int.from_bytes(self.mem_read(start_addr, 1), self.endian, signed=True)
 

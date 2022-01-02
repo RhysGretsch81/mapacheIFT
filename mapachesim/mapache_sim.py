@@ -1,9 +1,13 @@
 '''The UCSB Mapache Interactive Architecture Simulator'''
 
+# 1) catch error and exit on "step" (not just run)
+# 2) convert step instruction decode use "fancy" register names
+# 3) initialize the stack pointer correctly and reset the registers
+
 import cmd
 import signal
 
-from helpers import AssemblyError
+from helpers import AssemblyError, ExecutionError, ExecutionComplete
 
 import mips
 import toy
@@ -44,22 +48,39 @@ class MapacheShell(cmd.Cmd):
         # map 2MB memory for emulation
         self.machine.mem_map(self.text_start_address, 2 * 1024 * 1024)
 
-    def run(self):
-        '''Run the machine simulation forward until broken, used by "run" and "continue".'''
+    def simulate(self, max_instructions=None, print_each=False):
+        '''Run the machine simulation forward until broken, used by "run", "continue", and "step".'''
         self._running = True
-        pc, instruction_string = self.machine.step()
-        while True:
-            if self._interrupted:
-                self._interrupted = False
-                self.print_current_instruction(pc, instruction_string, 'interrupted')
+        stop_string = ''
+        instructions_executed = 0
+        try:
+            while max_instructions is None or instructions_executed < max_instructions:
+                pc, instruction_string, ireturn = self.machine.step()
+                instructions_executed += 1
+                if self._interrupted:
+                    self._interrupted = False
+                    stop_string = 'interrupted'
+                    break
+                elif self.machine.PC in self.breakpoints:
+                    stop_string = 'breakpoint'
+                    break
+                elif ireturn is ExecutionComplete:
+                    stop_string = 'execution complete'
+                    break
+                elif print_each:
+                    self.print_current_instruction(pc, instruction_string)
+            else:  # executed the right number of instructions, so just return
                 self._running = False
-                return
-            elif self.machine.PC in self.breakpoints:
-                self.print_current_instruction(pc, instruction_string, 'breakpoint')
-                self._running = False
-                return
-            pc, instruction_string = self.machine.step()
+                return instructions_executed
+        except ExecutionError as e:
+            self.error_msg(f'Runtime Machine Error: {e}')
+            self._running = False
+            return instructions_executed
 
+        self.print_current_instruction(pc, instruction_string, stop_string)
+        self._running = False
+        return instructions_executed
+                            
     def parse_arg_as_address(self, arg, default=None):
         '''Take an argument and attempt convert it address (as a number or label).'''
         # TODO: add label conversion here
@@ -188,9 +209,7 @@ class MapacheShell(cmd.Cmd):
     def do_step(self, arg):
         'Step the program execution forwar N instructions: e.g. "step 3", "step"'
         n_steps = self.parse_arg_as_integer(arg, default=1)
-        for i in range(n_steps):
-            pc, instruction_string = self.machine.step()
-            self.print_current_instruction(pc, instruction_string)
+        self.simulate(n_steps, print_each=True)
 
     def do_regs(self, arg):
         'Print the relavent registers of the processor: e.g. "regs"'
@@ -215,11 +234,11 @@ class MapacheShell(cmd.Cmd):
         'Run the loaded program. e.g. "run"'
         self.machine.PC = self.text_start_address
         print('TODO REMINDER: reset the registers')
-        self.run()
+        self.simulate()
 
     def do_continue(self, arg):
         'Continue running program after break. e.g. "continue"'
-        self.run()
+        self.simulate()
 
     def do_reinitialize(self, arg):
         'Clear the memory and registers and reload machine model. e.g. "reinitialize"'
