@@ -1,6 +1,7 @@
 ''' ISA definition classes. '''
 
 import collections
+import itertools
 import types
 
 import assembler
@@ -21,17 +22,29 @@ class  IsaDefinition:
         self.text_start_address = 0x10000
         self.data_start_address = 0x40000
         self.assembler = assembler.Assembler(self)
+        # try and catch some common errors early
+        self.sanity_check()
 
-        # some sanity checks
+    def sanity_check(self):
+        '''Run a series of checks for common errors in ISA specification.'''
+        # check for misspelled "psuedo" for "pseudo"
         if [f for f in dir(self) if f.startswith('psuedo_')]:
             raise ISADefinitionError('misspelled pseudo!')
+        # check a mismatch between the instruction name and specification
         for f in dir(self):
             if f.startswith('instruction_'):
                 func_op = f[12:]
                 def_op = self._extract_asm(getattr(self,f)).split()[0]
                 if func_op != def_op:
                     raise ISADefinitionError(f'{f} name "{func_op}" and def "{def_op}" differ.')
-        # TODO check that bit-patterns don't overlap
+        # check that all bitpatterns are pairwise unique
+        for f1, f2 in itertools.combinations(self._instrfuncs, 2):
+            p1 = self._extract_pattern(f1)
+            p2 = self._extract_pattern(f2)
+            differ = lambda x,y: (x=='0' and y=='1') or (x=='1' and y=='0')
+            differ_by_at_least_one_bit = any(differ(x,y) for x,y in zip(p1,p2))
+            if not differ_by_at_least_one_bit:
+                raise ISADefinitionError(f'Patterns "{p1}" and "{p2}" overlap.')
 
     def make_register(self, name, bits=32):
         '''Add a special purpose register to the machine specification.'''
@@ -73,6 +86,7 @@ class  IsaDefinition:
     def _extract_pattern(self, func):
         '''Extract an patterns from the instruction function docstring.'''
         # string should look like 'add immediate : 001000 sssss ttttt iiiiiiiiiii: something'
+        # TODO: this should probably be done once at initialization
         docstring = func.__doc__
         clean_format = docstring.replace(' ','').split(':')[1]
         if len(clean_format) != self.isize*8:

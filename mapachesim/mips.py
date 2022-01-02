@@ -59,6 +59,10 @@ class Mips(IsaDefinition):
         'move : pseudo : move $d $s'
         yield f'add ${ifield.d} ${ifield.s} $0'
 
+    def pseudo_nop(self, ifield):
+        'nop : pseudo : nop'
+        yield f'sll $0 $0 0'
+
     # R-format Instructions
 
     def instruction_sll(self, ifield):
@@ -162,8 +166,3 @@ class Mips(IsaDefinition):
         'load upper immediate : 001111 ----- ttttt iiiiiiiiiiiiiiii : lui $t !i'
         self.R[ifield.t] = ifield.i << 16
         raise NotImplementedError
-
-    def instruction_nop(self, ifield):
-        'nop : 000000 00000 00000 00000 00000 000000 : nop'
-        pass
-
