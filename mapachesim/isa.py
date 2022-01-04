@@ -15,7 +15,7 @@ class  IsaDefinition:
         self._instrfuncs = [getattr(self,f) for f in dir(self) if f.startswith('instruction_')]
         self._pseudofuncs = [getattr(self,f) for f in dir(self) if f.startswith('pseudo_')]
         self._reg_list = []
-        self._mem = None
+        self._mem = {}  # a dictionary of 4k bytearrays
         # the parameters below are set by default but can be overridden in derived classes
         self.endian = 'big'  # can be either 'big' or 'little'
         self.isize = 4  # width of an instruction in bytes
@@ -200,20 +200,33 @@ class  IsaDefinition:
 
     def mem_map(self, start_address, size):
         '''Map a region of physical memory into the simulator.'''
-        print('Warning: memory map not fully implemented -- assuming start_address is zero')
-        self._mem = bytearray(size)
+        # TODO: page size be configurable by the isa
+        self.invalid_when(start_address & 0xfff, 'Memory start address is not 4k page aligned' )
+        self.invalid_when(size & 0xfff, 'Memory size is not 4k page aligned' )
+        self.invalid_when(size <= 0, 'Non-positive memory allocation size' )
+        self.invalid_when(start_address < 0, 'Negative start address' )
+        for page in range(start_address, start_address+size, 4096):
+            self.invalid_when(page in self._mem, 'Attempted to map page which is already mapped' )
+            self._mem[page] = bytearray(4096)
 
     def mem_read(self, start_addr, size):
         '''Read a region of memory and return an array of bytes.'''
         if size <= 0:
-            raise ISADefinitionError(f'memory access of size "{size}" not supported')
-        self.invalid_when( start_addr+size > len(self._mem), 'Segmentation Fault' )
-        return self._mem[start_addr:start_addr+size]
+            raise ISADefinitionError(f'Memory read of size "{size}" not supported')
+        page, offset = start_addr & ~0xfff, start_addr & 0xfff
+        end_page = (start_addr + size - 1) & ~0xfff
+        self.invalid_when(page != end_page, f'Memory read across page boundries not supported' )
+        self.invalid_when(page not in self._mem, f'Segmentation Fault (access to unmapped page "{hex(page)}")' )
+        return self._mem[page][offset:offset+size]
 
     def mem_write(self, start_addr, data):
         '''Write an array of bytes into memory.'''
-        self.invalid_when( start_addr+len(data) > len(self._mem), 'Segmentation Fault' )
-        self._mem[start_addr:start_addr+len(data)] = data
+        page, offset = start_addr & ~0xfff, start_addr & 0xfff
+        size = len(data)
+        end_page = (start_addr + size - 1) & ~0xfff
+        self.invalid_when(page != end_page, f'Memory write across page boundries not supported' )
+        self.invalid_when(page not in self._mem, f'Segmentation Fault (access to unmapped page "{hex(page)}")' )
+        self._mem[page][offset:offset+size] = data
 
     # Some simple wrappers for mem_read and mem_write for readability
     def mem_write_64bit(self, start_addr, value):

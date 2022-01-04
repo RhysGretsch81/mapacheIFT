@@ -45,8 +45,9 @@ class MapacheShell(cmd.Cmd):
         self.text_start_address = self.machine.text_start_address
         self.data_start_address = self.machine.data_start_address
         self.breakpoints = {}
-        # map 2MB memory for emulation
-        self.machine.mem_map(self.text_start_address, 2 * 1024 * 1024)
+        # map 2MB chuncks of memory for emulation
+        self.machine.mem_map(self.text_start_address, 2 * 1024 * 1024) # text and global
+        self.machine.mem_map(0x7fe00000, 2 * 1024 * 1024) # stack
 
     def simulate(self, max_instructions=None, print_each=False):
         '''Run the machine simulation forward until broken, used by "run", "continue", and "step".'''
@@ -234,8 +235,7 @@ class MapacheShell(cmd.Cmd):
 
     def do_run(self, arg):
         'Run the loaded program. e.g. "run"'
-        #self.machine.reset_registers()
-        print('Reminder: reset registers')
+        self.machine.reset_registers()
         self.machine.PC = self.text_start_address
         self.simulate()
 
