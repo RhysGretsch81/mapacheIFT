@@ -9,39 +9,42 @@ import signal
 
 from helpers import AssemblyError, ExecutionError, ExecutionComplete
 
-import mips
-import toy
-import m248
+import arch_mips
+import arch_toy
+import arch_m248
 
 
-def chunk_list(lst, n):
+def _chunk_list(lst, n):
     '''Chunk a list into a list of lists of length n.'''
     for i in range(0, len(lst), n):
         yield lst[i:i+n]
 
 
-class MapacheShell(cmd.Cmd):
-    '''The Mapache Interactive Shell. 
+class MapacheConsole(cmd.Cmd):
+    '''The Mapache Interactive Console. 
 
-       The shell handles all manner of error catching and presentation
+       The console handles all manner of error catching and presentation
        for the machine simulator and assembler in as an ISA independent
        manner as possible.'''
 
     intro = 'Welcome to MapacheSIM. Type help or ? to list commands.\n'
     prompt = '(mapache) '
 
-    def __init__(self):
+    def __init__(self, verbose=True):
         super().__init__()
+        self._verbose = verbose
         self.initialize()
         signal.signal(signal.SIGINT, handler=self.handler_sigint)
         self._interrupted = False # true when sigint has been caught
         self._running = False # true only during a "run"
 
+    # --- Simualtion and Machine State --------------------------------------
+
     def initialize(self):
         #self.machine = m248.M248()
-        self.machine = mips.Mips()
+        self.machine = arch_mips.Mips()
         #self.machine = toy.Toy()
-        print(f'Loading "{type(self.machine).__name__}" processor model.')
+        self.print_verbose(f'Loading "{type(self.machine).__name__}" processor model.')
         self.text_start_address = self.machine.text_start_address
         self.data_start_address = self.machine.data_start_address
         self.breakpoints = {}
@@ -74,14 +77,26 @@ class MapacheShell(cmd.Cmd):
                 self._running = False
                 return instructions_executed
         except ExecutionError as e:
-            self.error_msg(f'Runtime Machine Error: {e}')
+            self.print_error(f'Runtime Machine Error: {e}')
             self._running = False
             return instructions_executed
 
-        self.print_current_instruction(pc, instruction_string, stop_string)
+        if self._verbose:
+            self.print_current_instruction(pc, instruction_string, stop_string)
         self._running = False
         return instructions_executed
                             
+    def load_text(self, code):
+        '''Load a bytearray of code into instruction memory, and start up simulator.'''
+        self.machine.mem_write(self.text_start_address, code) # write code to emulated memory
+        self.machine.PC = self.text_start_address # set pc using the setter
+
+    def load_data(self, data):
+        '''Load a bytearray in to the data segment and set up the rest of memory.'''
+        self.machine.mem_write(self.data_start_address, data) # write data segment to emulated memory 
+
+    # --- Parsers and Printers --------------------------------------
+
     def parse_arg_as_address(self, arg, default=None):
         '''Take an argument and attempt convert it address (as a number or label).'''
         # TODO: add label conversion here
@@ -91,7 +106,7 @@ class MapacheShell(cmd.Cmd):
             else:
                 addr = default
         except ValueError as e:
-            self.error_msg(f'Error: Unable to parse hex address "{arg}"')
+            self.print_error(f'Error: Unable to parse hex address "{arg}"')
         return addr
 
     def parse_arg_as_integer(self, arg, default=None):
@@ -102,7 +117,7 @@ class MapacheShell(cmd.Cmd):
             else:
                 intval = default
         except ValueError as e:
-            self.error_msg(f'Error: Unable to parse as base 10 number "{arg}"')
+            self.print_error(f'Error: Unable to parse as base 10 number "{arg}"')
         return intval
 
     def print_current_instruction(self, pc, istring, note=None):
@@ -120,7 +135,7 @@ class MapacheShell(cmd.Cmd):
         def pprint_regs(reg_values):
             # TODO: check bits is not 32 and handle that case as well
             reg_formatted = [f'{name:<3}= {rformat(rval):>10}' for name,bits,rval in reg_values]
-            for reg_line in chunk_list(reg_formatted, 4):
+            for reg_line in _chunk_list(reg_formatted, 4):
                 print('  '.join(reg_line))
 
         pprint_regs(self.machine.registers())
@@ -137,22 +152,20 @@ class MapacheShell(cmd.Cmd):
         for offset in range(0, size, width):
             addr = start_addr + offset
             row = mem_formated[offset:offset+width]
-            mem_words = [' '.join(chunk) for chunk in chunk_list(row, 4)]
+            mem_words = [' '.join(chunk) for chunk in _chunk_list(row, 4)]
             mem_row = sep.join(mem_words)
             print(f'{addr:#010x}:{sep}{mem_row}')
 
-    def load_text(self, code):
-        '''Load a bytearray of code into instruction memory, and start up simulator.'''
-        self.machine.mem_write(self.text_start_address, code) # write code to emulated memory
-        self.machine.PC = self.text_start_address # set pc using the setter
-
-    def load_data(self, data):
-        '''Load a bytearray in to the data segment and set up the rest of memory.'''
-        self.machine.mem_write(self.data_start_address, data) # write data segment to emulated memory 
-
-    def error_msg(self, msg):
+    def print_error(self, msg):
         '''Print a non-fatal error message to the user.'''
         print(f'\n{msg}\n')
+
+    def print_verbose(self, *args, **kwargs):
+        '''Print only if console set to verbose mode.'''
+        if self._verbose:
+            print(*args, **kwargs)
+
+    #--- Command Handlers ----------------------------------
 
     def handler_sigint(self, signal, frame):
         self._interrupted = True
@@ -202,11 +215,11 @@ class MapacheShell(cmd.Cmd):
             self.load_data(data)
             self.load_text(code)
         except FileNotFoundError as e:
-            self.error_msg(f'Error: Cannot find file "{filename}" to load.')
+            self.print_error(f'Error: Cannot find file "{filename}" to load.')
         except IsADirectoryError as e:
-            self.error_msg(f'Error: Cannot load file "{filename}" because it is a directory.')
+            self.print_error(f'Error: Cannot load file "{filename}" because it is a directory.')
         except AssemblyError as e:
-            self.error_msg(f'Assembly Error: {e}')
+            self.print_error(f'Assembly Error: {e}')
 
 
     def do_step(self, arg):
@@ -252,7 +265,7 @@ class MapacheShell(cmd.Cmd):
         addr = self.parse_arg_as_address(arg)
         if addr:
             if addr % self.machine.isize != 0:
-                self.error_msg(f'Cannot add unaligned breakpoint to address "{addr}".')
+                self.print_error(f'Cannot add unaligned breakpoint to address "{addr}".')
             else:
                 self.breakpoints[addr] = arg
                 print(f'Added breakpoint at {addr:010x} (named "{arg}").')
@@ -265,7 +278,7 @@ class MapacheShell(cmd.Cmd):
                 del self.breakpoint[addr]
                 print(f'Removed breakpoint from address "{addr:010x}".')
             else:
-                self.error_msg(f'No breakpoint set at "{addr}".')
+                self.print_error(f'No breakpoint set at "{addr}".')
 
     def do_list(self, arg):
         'List all breakpoints. e.g. "list"'
@@ -280,9 +293,4 @@ class MapacheShell(cmd.Cmd):
 
     do_EOF = do_exit
     do_quit = do_exit
-
-# ==========================================================================
-
-if __name__ == '__main__':
-    MapacheShell().cmdloop()
 
