@@ -213,8 +213,9 @@ class MapacheConsole(cmd.Cmd):
             with open(filename,'r') as file:
                 program = file.read()
             code, data = self.machine.assembler.assemble(program, tstart, dstart)
+            self.machine.reset_registers()
             self.load_data(data)
-            self.load_text(code)
+            self.load_text(code) # this sets the PC
         except FileNotFoundError as e:
             self.print_error(f'Error: Cannot find file "{filename}" to load.')
         except IsADirectoryError as e:

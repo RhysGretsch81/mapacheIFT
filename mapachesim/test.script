@@ -1,2 +1,3 @@
 load ../asm/factorial-mips.asm
-run
+step 1000
+step 1000
