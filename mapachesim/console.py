@@ -106,6 +106,7 @@ class MapacheConsole(cmd.Cmd):
             else:
                 addr = default
         except ValueError as e:
+            addr = None
             self.print_error(f'Error: Unable to parse hex address "{arg}"')
         return addr
 
@@ -282,9 +283,9 @@ class MapacheConsole(cmd.Cmd):
 
     def do_list(self, arg):
         'List all breakpoints. e.g. "list"'
-        print('Currently tracking {len(self.breakpoints)} breakpoints.')
+        print(f'Currently tracking {len(self.breakpoints)} breakpoints.')
         for addr in self.breakpoints:
-            print('  {addr:010x}: {self.breakpoints[addr]}')
+            print(f'  {addr:010x}: {self.breakpoints[addr]}')
 
     def do_exit(self, arg):
         'Exit MapacheSIM: exit'

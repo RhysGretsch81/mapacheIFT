@@ -2,10 +2,22 @@
 
 ''' MAPACHE: A Maluable-Architecture Processor, Assembler, and Console Hardware Emulation System. '''
 
+description = '''The program, mapache, provide a maluable-architecture processor, 
+assembler, and console hardware emulation system. '''
+
+epilog = '''Run with no arguments (e.g. as simply "./mapache") it will load the 
+architecture simulator and console system to accept commands to load, run, step-through, a 
+examine program behavior at the level of machine state.  The command "help" in the console 
+will provide more information about actions that can be taken. In addition, if mapache is 
+run with an optional "asm" argument (e.g. "./mapache myprogram.asm") it will instead load 
+and then run specified assembly file non-interactively exiting on completion.  When 
+coupled with the "--quiet" option, it allows the assembly in a manner simmilar to compiled 
+program.'''
+
 import argparse
 from console import MapacheConsole
 
-parser = argparse.ArgumentParser(description="Maluable processor emulation system")
+parser = argparse.ArgumentParser(description=description, epilog=epilog)
 parser.add_argument('asm', nargs='?', help='A ".asm" file to load and run')
 parser.add_argument('-q', '--quiet', action='store_true')
 args = parser.parse_args()
