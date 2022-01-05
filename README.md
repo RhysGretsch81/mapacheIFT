@@ -27,7 +27,8 @@ program.
 Here is an example loading a MIPS assembly function, stepping through the first couple of 
 instructions, and then continuing on until the end of execution.
 
-```[Laptop:git MapacheSim/mapachesim] [main*] sherwood% ./mapache 
+```
+[Laptop:git MapacheSim/mapachesim] [main*] sherwood% ./mapache 
 Loading "Mips" processor model.
 Welcome to MapacheSIM. Type help or ? to list commands.
 
@@ -42,15 +43,16 @@ Welcome to MapacheSIM. Type help or ? to list commands.
 
 Enter a number: 
 Factorial is: 120 
-0000010040: syscall (execution complete) (mapache) ``` 
-
+0000010040: syscall (execution complete) (mapache)
+```
 
 At any point when execution is stopped you inspect the registers and look through memory (either 
 at specific regions of memory or the default start of the "text" and "data" segments.  The full 
 32-bit value of each register is shown in hex, and memory is shown in bytes (further segmented 
 into 4-byte words for easier reading).
 
-```(mapache) regs
+```
+(mapache) regs
 
 $0 = 0x00000000  $at= 0x00000000  $v0= 0x0000000a  $v1= 0x00000000
 $a0= 0x00000078  $a1= 0x00000078  $a2= 0x00000000  $a3= 0x00000000
@@ -102,3 +104,10 @@ PC = 0x00010044  HI = 0x00000000  LO = 0x00000078
 
 (mapache) 
 ```
+
+For example, in the above data memory dump, the byte at address `0x40000` has the value `0x0a`, 
+the byte at address `0x40001` has the value `0x45`, the byte at address `0x4000F` has the value 
+`0x3a`, `0x40014` has the value `0x61` etc.  
+
+Looking further up we can see that the PC is 0x00010044, which means that it is pointing to the 
+instruction with value `0x23bdfffc`.
