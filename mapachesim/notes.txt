@@ -14,6 +14,8 @@ ________________________________________________________________________________
 
 * Error message for "li" pseudo-instructions
 
+* Need a "decode" command to interpret bytes as an instruction
+
 * Improve step output to include label and source code (e.g.)
   [0x00400010]    0x00c23021  addu $6, $6, $2                 ; 179: addu $a2 $a2 $v0
   [0x00400014]    0x0c100009  jal 0x00400024 [main]           ; 180: jal main

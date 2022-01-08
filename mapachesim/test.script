@@ -1,3 +1,5 @@
 load ../asm/factorial-mips.asm
 run
 5
+load ../asm/arithmetic-mips.asm 
+run

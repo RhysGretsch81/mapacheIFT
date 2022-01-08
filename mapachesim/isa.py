@@ -50,7 +50,6 @@ class  IsaDefinition:
         '''Add a special purpose register to the machine specification.'''
         setattr(self, name, 0)
         self._reg_list.append(('reg',name,bits,None,None))
-        #self.mask[name] = (1<<bits)-1
 
     def make_register_file(self, name, size, bits=32, rnames=None):
         '''Add a register file to the machine specification.'''
@@ -78,6 +77,21 @@ class  IsaDefinition:
                 assert rtype=='file'
                 for i in range(size):
                     getattr(self, name)[i] = 0
+
+    def bitclip_registers(self):
+        '''Mask all the registers back to their values.'''
+        # TODO: this should be handled with a specific register class
+        # because doing this after every instruction seems wasteful
+        for rtype, name, bits, size, rnames in self._reg_list:
+            mask = (1<<bits)-1
+            if rtype=='reg':
+                clipped_value = getattr(self, name) & mask
+                setattr(self, name, clipped_value)
+            else:
+                assert rtype=='file'
+                for i in range(size):
+                    clipped_value = getattr(self, name)[i] & mask
+                    getattr(self, name)[i] = clipped_value
 
     def register_number_from_name(self, name_in_code):
         for rtype,name,bits,size,rname in self._reg_list:
@@ -179,7 +193,9 @@ class  IsaDefinition:
     def execute(self, decoded_instr):
         '''Execute a decoded instruction.'''
         ifunction, ifield = decoded_instr
-        return ifunction(ifield)
+        ireturn = ifunction(ifield)
+        self.bitclip_registers()
+        return ireturn
 
     def istring(self, decoded_instr):
         '''Return a string representation of a decoded instruction.'''

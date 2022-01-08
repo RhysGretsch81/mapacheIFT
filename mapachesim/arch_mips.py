@@ -143,7 +143,7 @@ class Mips(IsaDefinition):
             return ExecutionComplete
 
         else:
-            self.invalid_when(True, 'syscall: invalid system call service')
+            self.invalid_when(True, f'syscall: invalid system call service (v0={self.R[v0]})')
 
     def instruction_mflo(self, ifield):
         'move from lo : 000000 ----- ----- ddddd ----- 010010: mflo $d'

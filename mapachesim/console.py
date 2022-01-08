@@ -88,12 +88,14 @@ class MapacheConsole(cmd.Cmd):
                             
     def load_text(self, code):
         '''Load a bytearray of code into instruction memory, and start up simulator.'''
-        self.machine.mem_write(self.text_start_address, code) # write code to emulated memory
-        self.machine.PC = self.text_start_address # set pc using the setter
+        if code:
+            self.machine.mem_write(self.text_start_address, code) # write code to emulated memory
+            self.machine.PC = self.text_start_address # set pc using the setter
 
     def load_data(self, data):
         '''Load a bytearray in to the data segment and set up the rest of memory.'''
-        self.machine.mem_write(self.data_start_address, data) # write data segment to emulated memory 
+        if data:
+            self.machine.mem_write(self.data_start_address, data) # write data segment to emulated memory 
 
     # --- Parsers and Printers --------------------------------------
 
@@ -225,9 +227,15 @@ class MapacheConsole(cmd.Cmd):
 
 
     def do_step(self, arg):
-        'Step the program execution forwar N instructions: e.g. "step 3", "step"'
+        'Step the program execution forward N instructions: e.g. "step 3", "step"'
         n_steps = self.parse_arg_as_integer(arg, default=1)
         self.simulate(n_steps, print_each=True)
+
+    def do_pstep(self, arg):
+        'Step the program execution forward and print other useful infomation: e.g. "pstep"'
+        self.simulate(1, print_each=True)
+        self.print_registers()
+        print()
 
     def do_regs(self, arg):
         'Print the relavent registers of the processor: e.g. "regs"'
