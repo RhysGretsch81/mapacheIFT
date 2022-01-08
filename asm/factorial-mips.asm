@@ -10,7 +10,7 @@ main:
     syscall  # print msg
 
     li $v0, 5
-    # syscall  # take factorial of 5 until string input works
+    syscall # read input string
     move $a0, $v0
 
     jal calculate_factorial

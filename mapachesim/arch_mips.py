@@ -109,8 +109,10 @@ class Mips(IsaDefinition):
     def instruction_syscall(self, ifield):
         'system call : 000000 ----- ----- ----- ----- 001100: syscall'
         v0, a0, a1 = 2, 4, 5
+
         if self.R[v0] == 1:  # print integer
             print(sign_extend(self.R[a0],32))
+
         elif self.R[v0] == 4:  # print string
             maxstring = 1024
             address = self.R[a0]
@@ -126,12 +128,20 @@ class Mips(IsaDefinition):
                 address += 1
             else: # hit the maxstring limit
                     print(f'... (string continues beyond limit of {maxstring})', end='')
+
         elif self.R[v0] == 5:  # read integer
-            raise NotImplementedError('read integer')
+            input_string = input()
+            try:
+                self.R[v0] = int(input_string)
+            except ValueError:
+                raise ExecutionError('invalid integer read during system call')
+
         elif self.R[v0] == 8:  # read string
             raise NotImplementedError('read string')
+
         elif self.R[v0] == 10:  # exit
             return ExecutionComplete
+
         else:
             self.invalid_when(True, 'syscall: invalid system call service')
 

@@ -4,6 +4,8 @@
 ______________________________________________________________________________________
 # To be added for CS64 MIPS usecase
 
+* Make sure registers are limited to register width at all times
+
 * Add breakpoints based on labels
 
 * Better error messages for assembly syntax errors
