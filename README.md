@@ -1,20 +1,20 @@
 MapacheSim
 ==========
 
-MapacheSim is a maluable-architecture processor, assembler, and consoled hardware-emulation system.
+MapacheSim is a malleable-architecture processor, assembler, and consoled hardware-emulation system.
 It provides a SPIM-like simulator for a variety of architectures useful for both research and teaching.
 
 ### Why MapacheSim?
 
 When learning a new architecture, or even more so, when trying to create a new one, it is really useful
-to have a simple to understand, interactive, and easily modifyiable machine emulator. 
+to have a simple to understand, interactive, and easily modifiable machine emulator. 
 Normally this would require carefully specifying a complete machine code, building an entirely
 new assembler that would target that machine code, building a completely new simulator that will emulate that
-machine, and writting a whole lot of supporting software to manage the basics of loading and running programs
+machine, and writing a whole lot of supporting software to manage the basics of loading and running programs
 on the machine. A fun time to be sure, but also a very time consuming process. The idea of MapacheSim is to make it as easy
 as possible to bring a [SPIM](http://old.disco.unimib.it/architettura1/arch04/laboratorio/spim/cod-appa.pdf)
 style of simulator quickly and easily to whatever crazy new machine you might be cooking up.  MapacheSim
-is not intended to be a replacement for carefully engineered system toolchains but rather exists to lower the
+is not intended to be a replacement for carefully engineered system tool-chains but rather exists to lower the
 barrier to ISA-level research, exploration, and education and allow people looking to change the way machines are
 organized to fail fast and iterate quickly.  
 
@@ -33,7 +33,7 @@ actions that can be taken.
 
 In addition, if MapacheSim is run with an optional "asm" argument (e.g. `./mapache myprogram.asm`) 
 it will instead load and then run specified assembly file non-interactively exiting on completion.  
-When coupled with the "--quiet" option, it allows the assembly in a manner simmilar to compiled 
+When coupled with the "--quiet" option, it allows the assembly in a manner similar to compiled 
 program.
 
 ### A Quick Example
@@ -130,7 +130,7 @@ instruction with value `0x23bdfffc`.
 
 At the beating heart of MapacheSim is a class that is extensible with documented methods that
 correspond one-to-one with the instructions on the machine.  A somewhat interesting instruction
-to look at is the MIPS jump-and-link (`jal`) which is used to jump to a proceedure and store
+to look at is the MIPS jump-and-link (`jal`) which is used to jump to a procedure and store
 the return address in to the return address register `$ra` (a.k.a. `$31`).  The method below
 is all that is required in MapacheSim to specify the name, operands, behavior, machine code, and
 assembly format for the `jal` instruction.
@@ -145,7 +145,7 @@ assembly format for the `jal` instruction.
 
 While the behavior is specified in pure vanilla python (no magic methods are used), 
 most of the work that happens in MapacheSim is based off of the doc string which is
-divided into three fields (seperated by colons).  
+divided into three fields (separated by colons).  
 
 The first field is just the full name
 of the instruction and is used in debugging and documentation.  
@@ -162,11 +162,11 @@ The third field is the assembly format for the instruction.  This includes the
 instruction mnemonic (which must be method name as well) and the format of the 
 operands.  In this case the `@` symbol indicates that the instruction argument
 should be an address which can then be specified as a hex number or a label.
-Other specifier are used to indicated registers (`$`), and immediates (`!`).
+Other specifier are used to indicated registers (`$`), and immediate (`!`).
 In addition to the type of the operand, it also tells the system how to pack
 those operands down into bits (which combined with the information in the second field).
 For example, the bits corresponding to the address `a` here are then packed
-into the `a` bits of the machine code.  A couple other examples docstrings
+into the `a` bits of the machine code.  A couple other examples doc strings
 from MIPS include:
 
 ```
