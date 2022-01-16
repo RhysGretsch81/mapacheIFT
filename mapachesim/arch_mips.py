@@ -24,7 +24,9 @@ class Mips(IsaDefinition):
         self.make_register('PC', 32)
         self.make_register('HI', 32)
         self.make_register('LO', 32)
-        self.jumps = set([self.instruction_j, self.instruction_jr, self.instruction_jalr, self.instruction_beq])
+
+        jumps = 'j jal jr jalr beq'.split()
+        self.jumps = set(getattr(self, f'instruction_{jump}') for jump in jumps)
         self.endian = 'big'
         self.assembler = Assembler(self)
 
