@@ -16,6 +16,7 @@ class  IsaDefinition:
         self._pseudofuncs = [getattr(self,f) for f in dir(self) if f.startswith('pseudo_')]
         self._reg_list = []
         self._mem = {}  # a dictionary of 4k bytearrays
+
         # the parameters below are set by default but can be overridden in derived classes
         self.endian = 'big'  # can be either 'big' or 'little'
         self.isize = 4  # width of an instruction in bytes

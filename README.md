@@ -4,6 +4,20 @@ MapacheSim
 MapacheSim is a maluable-architecture processor, assembler, and consoled hardware-emulation system.
 It provides a SPIM-like simulator for a variety of architectures useful for both research and teaching.
 
+### Why MapacheSim?
+
+When learning a new architecture, or even more so, when trying to create a new one, it is really useful
+to have a simple to understand, interactive, and easily modifyiable machine emulator. 
+Normally this would require carefully specifying a complete machine code, building an entirely
+new assembler that would target that machine code, building a completely new simulator that will emulate that
+machine, and writting a whole lot of supporting software to manage the basics of loading and running programs
+on the machine. A fun time to be sure, but also a very time consuming process. The idea of MapacheSim is to make it as easy
+as possible to bring a [SPIM](http://old.disco.unimib.it/architettura1/arch04/laboratorio/spim/cod-appa.pdf)
+style of simulator quickly and easily to whatever crazy new machine you might be cooking up.  MapacheSim
+is not intended to be a replacement for carefully engineered system toolchains but rather exists to lower the
+barrier to ISA-level research, exploration, and education and allow people looking to change the way machines are
+organized to fail fast and iterate quickly.  
+
 ### Install
 
 The easiest way to get going with MapacheSim is to pull it from github at 
@@ -111,3 +125,54 @@ the byte at address `0x40001` has the value `0x45`, the byte at address `0x4000F
 
 Looking further up we can see that the PC is 0x00010044, which means that it is pointing to the 
 instruction with value `0x23bdfffc`.
+
+### Specifying Assembly/Machine Instructions
+
+At the beating heart of MapacheSim is a class that is extensible with documented methods that
+correspond one-to-one with the instructions on the machine.  A somewhat interesting instruction
+to look at is the MIPS jump-and-link (`jal`) which is used to jump to a proceedure and store
+the return address in to the return address register `$ra` (a.k.a. `$31`).  The method below
+is all that is required in MapacheSim to specify the name, operands, behavior, machine code, and
+assembly format for the `jal` instruction.
+
+```python
+    def instruction_jal(self, ifield):
+        'jump and link : 000011 aaaaaaaaaaaaaaaaaaaaaaaaaa : jal @a'
+        self.R[31] = self.PC + 4
+        upper_bits = bit_select(self.PC + 4, 31, 28)
+        self.PC = upper_bits + (ifield.a << 2)
+```
+
+While the behavior is specified in pure vanilla python (no magic methods are used), 
+most of the work that happens in MapacheSim is based off of the doc string which is
+divided into three fields (seperated by colons).  
+
+The first field is just the full name
+of the instruction and is used in debugging and documentation.  
+
+The second field is the bit-field encoding of the instruction.  The bits of the
+instruction (right now MapacheSim handles only fixed-width instruction architectures) correspond one-to-one
+with the digits and letters in this field.  The fixed bits (`0`s and `1`s) allows MapacheSim to
+look at a sequence of bits and decode them to know which instruction should be executing.  The 
+variable bits (the letters, in this case simply `a`) tell MapacheSim which instruction bits to 
+break out into a field and pass along to the simulator.  Those fields are then made
+available in the `ifield` argument to the instruction method.
+
+The third field is the assembly format for the instruction.  This includes the
+instruction mnemonic (which must be method name as well) and the format of the 
+operands.  In this case the `@` symbol indicates that the instruction argument
+should be an address which can then be specified as a hex number or a label.
+Other specifier are used to indicated registers (`$`), and immediates (`!`).
+In addition to the type of the operand, it also tells the system how to pack
+those operands down into bits (which combined with the information in the second field).
+For example, the bits corresponding to the address `a` here are then packed
+into the `a` bits of the machine code.  A couple other examples docstrings
+from MIPS include:
+
+```
+'branch if equal : 000100 sssss ttttt aaaaaaaaaaaaaaaa : beq $s $t ^a'
+'add immediate : 001000 sssss ttttt iiiiiiiiiiiiiiii : addi $t $s !i'
+'add immediate unsigned : 001001 sssss ttttt iiiiiiiiiiiiiiii : addiu $t $s !i'
+```
+
+

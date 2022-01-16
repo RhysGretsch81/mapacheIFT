@@ -10,7 +10,6 @@ import signal
 from helpers import AssemblyError, ExecutionError, ExecutionComplete
 
 import arch_mips
-import arch_toy
 import arch_m248
 
 
@@ -43,7 +42,6 @@ class MapacheConsole(cmd.Cmd):
     def initialize(self):
         #self.machine = m248.M248()
         self.machine = arch_mips.Mips()
-        #self.machine = toy.Toy()
         self.print_verbose(f'Loading "{type(self.machine).__name__}" processor model.')
         self.text_start_address = self.machine.text_start_address
         self.data_start_address = self.machine.data_start_address
