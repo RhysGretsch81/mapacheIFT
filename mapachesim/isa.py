@@ -108,6 +108,108 @@ class  IsaDefinition:
                 pass
         return None
 
+    def invalid_when(self, condition, message):
+        '''If condition is true, raise ExecutionError with specified message.'''
+        if condition:
+            raise ExecutionError(message)
+
+    def fetch(self):
+        '''Fetch the next instruction at PC and return as an array of bytes.'''
+        return self.mem_read(self.PC, self.isize)
+
+    def decode(self, instr):
+        '''Given an instruction (as array of bytes) return its decoded form.'''
+        ifunc, ifield = self._find_pattern_match(instr)
+        if ifunc:
+            return ifunc, ifield
+        else:
+            raise ExecutionError(f'Unable to decode bytes as instruction: "{instr}".')
+
+    def execute(self, decoded_instr):
+        '''Execute a decoded instruction.'''
+        ifunction, ifield = decoded_instr
+        ireturn = ifunction(ifield)
+        self.bitclip_registers()
+        return ireturn
+
+    def disassemble(self, machine_code_instruction=None):
+        '''Return a string representation of the given instruction in machine code.
+           machine_code can be an array of bytes, an integer, or a hex string. 
+           If no matching instruction is found, None is returned.
+           If machine code is ommited, current instruction is used.'''
+        if machine_code_instruction:
+            instr = self._as_instruction_bytes(machine_code_instruction)
+        else:
+            instr = bytes(self.mem_read(self.PC, self.isize))
+        ifunction, ifield = self._find_pattern_match(instr)
+        if not ifunction:
+            return None
+        asm_pattern = self._extract_asm(ifunction)
+        instr_string = self._format_asm(asm_pattern, ifield)
+        return instr_string
+
+    def step(self):
+        '''Step the simulator forward and return any information from execution.'''
+        executed_pc = self.PC
+        instr_mem = self.fetch()
+        decoded_instr = self.decode(instr_mem)
+        ireturn = self.execute(decoded_instr)
+        if hasattr(self,'finalize_execution'):
+            self.finalize_execution(decoded_instr)
+        return executed_pc, ireturn
+
+    def mem_map(self, start_address, size):
+        '''Map a region of physical memory into the simulator.'''
+        # TODO: page size be configurable by the isa
+        self.invalid_when(start_address & 0xfff, 'Memory start address is not 4k page aligned' )
+        self.invalid_when(size & 0xfff, 'Memory size is not 4k page aligned' )
+        self.invalid_when(size <= 0, 'Non-positive memory allocation size' )
+        self.invalid_when(start_address < 0, 'Negative start address' )
+        for page in range(start_address, start_address+size, 4096):
+            self.invalid_when(page in self._mem, 'Attempted to map page which is already mapped' )
+            self._mem[page] = bytearray(4096)
+
+    def mem_read(self, start_addr, size):
+        '''Read a region of memory and return an array of bytes.'''
+        if size <= 0:
+            raise ISADefinitionError(f'Memory read of size "{size}" not supported')
+        page, offset = start_addr & ~0xfff, start_addr & 0xfff
+        end_page = (start_addr + size - 1) & ~0xfff
+        self.invalid_when(page != end_page, f'Memory read across page boundries not supported' )
+        self.invalid_when(page not in self._mem, f'Segmentation Fault (access to unmapped page "{hex(page)}")' )
+        return self._mem[page][offset:offset+size]
+
+    def mem_write(self, start_addr, data):
+        '''Write an array of bytes into memory.'''
+        page, offset = start_addr & ~0xfff, start_addr & 0xfff
+        size = len(data)
+        end_page = (start_addr + size - 1) & ~0xfff
+        self.invalid_when(page != end_page, f'Memory write across page boundries not supported' )
+        self.invalid_when(page not in self._mem, f'Segmentation Fault (access to unmapped page "{hex(page)}")' )
+        self._mem[page][offset:offset+size] = data
+
+    def mem_write_64bit(self, start_addr, value):
+        self.mem_write(start_addr, int.to_bytes(value, 8, self.endian, signed=True))
+    def mem_write_32bit(self, start_addr, value):
+        self.mem_write(start_addr, int.to_bytes(value, 4, self.endian, signed=True))
+    def mem_write_16bit(self, start_addr, value):
+        self.mem_write(start_addr, int.to_bytes(value, 2, self.endian, signed=True))
+    def mem_write_8bit(self, start_addr, value):
+        self.mem_write(start_addr, int.to_bytes(value, 1, self.endian, signed=True))
+    def mem_read_64bit(self, start_addr):
+        return int.from_bytes(self.mem_read(start_addr, 8), self.endian, signed=True)
+    def mem_read_32bit(self, start_addr):
+        return int.from_bytes(self.mem_read(start_addr, 4), self.endian, signed=True)
+    def mem_read_16bit(self, start_addr):
+        return int.from_bytes(self.mem_read(start_addr, 2), self.endian, signed=True)
+    def mem_read_8bit(self, start_addr):
+        return int.from_bytes(self.mem_read(start_addr, 1), self.endian, signed=True)
+    def mem_read_instruction(self, start_addr):
+        return int.from_bytes(self.mem_read(start_addr, self.isize), self.endian, signed=False)
+        
+
+    #--- private methods -------------------------------------------------------------
+
     def _extract_pattern(self, func):
         '''Extract an patterns from the instruction function docstring.'''
         # string should look like 'add immediate : 001000 sssss ttttt iiiiiiiiiii: something'
@@ -117,6 +219,14 @@ class  IsaDefinition:
         if len(clean_format) != self.isize*8:
             raise ISADefinitionError(f'format for "{clean_format}" is {len(clean_format)} bits not {self.isize*8}.')
         return clean_format
+
+    def _find_pattern_match(self, instr):
+        '''Given an instruction (as array of bytes) find and return it's function and field.'''
+        for ifunc in self._instrfuncs:
+            ifield = self._pattern_match(ifunc, instr)
+            if ifield is not None:
+                return ifunc, ifield
+        return None, None
 
     def _pattern_match(self, ifunc, instr):
         '''Check if a function docstring matches the raw bytes of instr provided, return fields or None.'''
@@ -174,92 +284,20 @@ class  IsaDefinition:
                 raise ISADefinitionError(f'Unknown operand specifier: "{part}" in "{asm_pattern}"')
         return str.join(' ', instruction)
 
-    def invalid_when(self, condition, message):
-        '''If condition is true, raise ExecutionError with specified message.'''
-        if condition:
-            raise ExecutionError(message)
-
-    def fetch(self):
-        '''Fetch the next instruction at PC and return as an array of bytes.'''
-        return self.mem_read(self.PC, self.isize)
-
-    def decode(self, instr):
-        '''Given an instruction (as array of bytes) return its decoded form.'''
-        for ifunc in self._instrfuncs:
-            ifield = self._pattern_match(ifunc, instr)
-            if ifield is not None:
-                return ifunc, ifield
-        raise ExecutionError(f'Unable to decode bytes as instruction: "{instr}".')
-
-    def execute(self, decoded_instr):
-        '''Execute a decoded instruction.'''
-        ifunction, ifield = decoded_instr
-        ireturn = ifunction(ifield)
-        self.bitclip_registers()
-        return ireturn
-
-    def istring(self, decoded_instr):
-        '''Return a string representation of a decoded instruction.'''
-        ifunction, ifield = decoded_instr
-        asm_pattern = self._extract_asm(ifunction)
-        instr_string = self._format_asm(asm_pattern, ifield)
-        return instr_string
-
-    def step(self):
-        '''Step the simulator forward and return tuple(pc, a string of instruction executed).'''
-        ipc = self.PC
-        instr_mem = self.fetch()
-        decoded_instr = self.decode(instr_mem)
-        ireturn = self.execute(decoded_instr)
-        if hasattr(self,'finalize_execution'):
-            self.finalize_execution(decoded_instr)
-        return ipc, self.istring(decoded_instr), ireturn
-
-    def mem_map(self, start_address, size):
-        '''Map a region of physical memory into the simulator.'''
-        # TODO: page size be configurable by the isa
-        self.invalid_when(start_address & 0xfff, 'Memory start address is not 4k page aligned' )
-        self.invalid_when(size & 0xfff, 'Memory size is not 4k page aligned' )
-        self.invalid_when(size <= 0, 'Non-positive memory allocation size' )
-        self.invalid_when(start_address < 0, 'Negative start address' )
-        for page in range(start_address, start_address+size, 4096):
-            self.invalid_when(page in self._mem, 'Attempted to map page which is already mapped' )
-            self._mem[page] = bytearray(4096)
-
-    def mem_read(self, start_addr, size):
-        '''Read a region of memory and return an array of bytes.'''
-        if size <= 0:
-            raise ISADefinitionError(f'Memory read of size "{size}" not supported')
-        page, offset = start_addr & ~0xfff, start_addr & 0xfff
-        end_page = (start_addr + size - 1) & ~0xfff
-        self.invalid_when(page != end_page, f'Memory read across page boundries not supported' )
-        self.invalid_when(page not in self._mem, f'Segmentation Fault (access to unmapped page "{hex(page)}")' )
-        return self._mem[page][offset:offset+size]
-
-    def mem_write(self, start_addr, data):
-        '''Write an array of bytes into memory.'''
-        page, offset = start_addr & ~0xfff, start_addr & 0xfff
-        size = len(data)
-        end_page = (start_addr + size - 1) & ~0xfff
-        self.invalid_when(page != end_page, f'Memory write across page boundries not supported' )
-        self.invalid_when(page not in self._mem, f'Segmentation Fault (access to unmapped page "{hex(page)}")' )
-        self._mem[page][offset:offset+size] = data
-
-    # Some simple wrappers for mem_read and mem_write for readability
-    def mem_write_64bit(self, start_addr, value):
-        self.mem_write(start_addr, int.to_bytes(value, 8, self.endian, signed=True))
-    def mem_write_32bit(self, start_addr, value):
-        self.mem_write(start_addr, int.to_bytes(value, 4, self.endian, signed=True))
-    def mem_write_16bit(self, start_addr, value):
-        self.mem_write(start_addr, int.to_bytes(value, 2, self.endian, signed=True))
-    def mem_write_8bit(self, start_addr, value):
-        self.mem_write(start_addr, int.to_bytes(value, 1, self.endian, signed=True))
-    def mem_read_64bit(self, start_addr):
-        return int.from_bytes(self.mem_read(start_addr, 8), self.endian, signed=True)
-    def mem_read_32bit(self, start_addr):
-        return int.from_bytes(self.mem_read(start_addr, 4), self.endian, signed=True)
-    def mem_read_16bit(self, start_addr):
-        return int.from_bytes(self.mem_read(start_addr, 2), self.endian, signed=True)
-    def mem_read_8bit(self, start_addr):
-        return int.from_bytes(self.mem_read(start_addr, 1), self.endian, signed=True)
-
+    def _as_instruction_bytes(self, machine_code_instruction):
+        '''Covert the given integer, or hex string to bytes.
+           Will raise ValueError if it fails.'''
+        instr = machine_code_instruction
+        try:
+            if isinstance(instr,int):
+                retval = instr.to_bytes(self.isize, byteorder=self.endian)
+            elif isinstance(instr,str):
+                instr_as_int = int(instr, 16)
+                retval = instr_as_int.to_bytes(self.isize, byteorder=self.endian)
+            elif isinstance(instr,bytearray):
+                retval = bytes(instr)
+        except [OverflowError, ValueError]:
+                raise ValueError('Unable to covert to bytes')
+        if len(retval) != self.isize:
+            raise ValueError('Unable to covert to bytes')
+        return retval

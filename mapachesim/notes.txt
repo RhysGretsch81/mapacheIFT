@@ -4,13 +4,9 @@
 ______________________________________________________________________________________
 # To be added for CS64 MIPS usecase
 
-* Make sure registers are limited to register width at all times
-
 * Add breakpoints based on labels
 
 * Better error messages for assembly syntax errors
-
-* Reset registers when "run" command is used
 
 * Error message for "li" pseudo-instructions
 

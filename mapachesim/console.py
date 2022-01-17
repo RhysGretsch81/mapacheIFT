@@ -6,6 +6,7 @@
 
 import cmd
 import signal
+import math
 
 from helpers import AssemblyError, ExecutionError, ExecutionComplete
 
@@ -50,14 +51,15 @@ class MapacheConsole(cmd.Cmd):
         self.machine.mem_map(self.text_start_address, 2 * 1024 * 1024) # text and global
         self.machine.mem_map(0x7fe00000, 2 * 1024 * 1024) # stack
 
-    def simulate(self, max_instructions=None, print_each=False):
+    def simulate(self, max_instructions=math.inf, print_each=False):
         '''Run the machine simulation forward until broken, used by "run", "continue", and "step".'''
         self._running = True
-        stop_string = ''
+        stop_string = None
         instructions_executed = 0
+        pc = None
         try:
-            while max_instructions is None or instructions_executed < max_instructions:
-                pc, instruction_string, ireturn = self.machine.step()
+            while instructions_executed < max_instructions:
+                pc, ireturn = self.machine.step()
                 instructions_executed += 1
                 if self._interrupted:
                     self._interrupted = False
@@ -70,20 +72,16 @@ class MapacheConsole(cmd.Cmd):
                     stop_string = 'execution complete'
                     break
                 elif print_each:
-                    self.print_current_instruction(pc, instruction_string)
-            else:  # executed the right number of instructions, so just return
-                self._running = False
-                return instructions_executed
+                    self.print_instruction(pc)
         except ExecutionError as e:
+            stop_string = 'machine error'
             self.print_error(f'Runtime Machine Error: {e}')
-            self._running = False
-            return instructions_executed
 
-        if self._verbose:
-            self.print_current_instruction(pc, instruction_string, stop_string)
+        if stop_string:
+            self.print_instruction(pc, stop_string)
         self._running = False
         return instructions_executed
-                            
+
     def load_text(self, code):
         '''Load a bytearray of code into instruction memory, and start up simulator.'''
         if code:
@@ -121,9 +119,14 @@ class MapacheConsole(cmd.Cmd):
             self.print_error(f'Error: Unable to parse as base 10 number "{arg}"')
         return intval
 
-    def print_current_instruction(self, pc, istring, note=None):
-        '''Print the current instruction.'''
+    def print_instruction(self, pc=None, note=None):
+        '''Print the instruction at the provided address.
+           If no "pc" is provided, the current pc is used.'''
+        if not pc:  
+            pc = self.machine.PC
         note_string = f'({note})' if note else ''
+        current_instruction = self.machine.mem_read_instruction(pc)
+        istring = self.machine.disassemble(current_instruction)
         print(f'{pc:010x}: {istring} {note_string}')
 
     def print_registers(self):
