@@ -238,6 +238,17 @@ class MapacheConsole(cmd.Cmd):
         self.print_registers()
         print()
 
+    def do_dis(self, arg):
+        'Disassemble a hex sequence as an instruction: e.g. "decode 0x21290004", "decode 21 29 00 04"'
+        hex_string = str.join('', arg.split())
+        try:
+            istring = self.machine.disassemble(hex_string)
+            print(f'{hex_string} -> {istring}')
+        except:
+            self.print_error(f'Error: Cannot diassasmble "{instr_string}".')
+        
+            
+
     def do_regs(self, arg):
         'Print the relavent registers of the processor: e.g. "regs"'
         print()
