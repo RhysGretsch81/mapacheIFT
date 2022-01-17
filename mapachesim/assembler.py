@@ -24,7 +24,7 @@ class Assembler:
         data = self.assemble_data(tokenized_program, data_start_address)
         self.set_text_labels(tokenized_program, text_start_address)
         text = self.assemble_text(tokenized_program)
-        return text, data
+        return text, data, self.labels
 
     def assemble_data(self, tokenized_program, data_start_address):
         ''' Return the data segment bytes and update the label table. '''

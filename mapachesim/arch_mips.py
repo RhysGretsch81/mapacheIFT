@@ -2,7 +2,7 @@
 
 import string
 
-from helpers import sign_extend, bit_select
+from helpers import sign_extend, bit_select, decimalstr_to_int
 from helpers import ExecutionError, ExecutionComplete
 from isa import IsaDefinition
 from assembler import Assembler
@@ -132,10 +132,11 @@ class Mips(IsaDefinition):
                     print(f'... (string continues beyond limit of {maxstring})', end='')
 
         elif self.R[v0] == 5:  # read integer
-            input_string = input()
-            try:
-                self.R[v0] = int(input_string)
-            except ValueError:
+            input_str = input()
+            input_int = decimalstr_to_int(input_str)
+            if input_int:
+                self.R[v0] = input_int
+            else:
                 raise ExecutionError('invalid integer read during system call')
 
         elif self.R[v0] == 8:  # read string

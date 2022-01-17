@@ -6,6 +6,7 @@ import types
 
 import assembler
 from helpers import ISADefinitionError, AssemblyError, ExecutionError
+from helpers import decimalstr_to_int
 
 
 class  IsaDefinition:
@@ -95,6 +96,9 @@ class  IsaDefinition:
                     getattr(self, name)[i] = clipped_value
 
     def register_number_from_name(self, name_in_code):
+        '''Return register number (an int) from name provided.
+           If the name is not found it will check for $number format (e.g. $8).
+           If it cannot provide a number, it will return None.'''
         for rtype,name,bits,size,rname in self._reg_list:
             if rtype=='file':
                 for rnum,register_name in rname.items():
@@ -102,10 +106,7 @@ class  IsaDefinition:
                         return rnum
         # can't find name, maybe it is a number directly
         if name_in_code.startswith('$'):
-            try:
-                return int(name_in_code[1:])
-            except ValueError:
-                pass
+            return decimalstr_to_int(name_in_code[1:])
         return None
 
     def invalid_when(self, condition, message):

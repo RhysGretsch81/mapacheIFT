@@ -46,6 +46,31 @@ assert align(9,2) == 10
 assert align(9,1) == 9
 
 #-----------------------------------------------------------------------
+def hexstr_to_int(hexstr):
+    '''Given a number is hex, return its value as an int (or None if unsucessful).'''
+    try:
+        return int(hexstr, 16)
+    except ValueError:
+        return None
+
+assert hexstr_to_int('0x10') == 16
+assert hexstr_to_int('10') == 16
+assert hexstr_to_int('foobar') == None
+assert hexstr_to_int('') == None
+
+#-----------------------------------------------------------------------
+def decimalstr_to_int(decstr):
+    '''Given a number is decimal, return its value as an int (or None if unsucessful).'''
+    try:
+        return int(decstr, 10)
+    except ValueError:
+        return None
+
+assert decimalstr_to_int('10') == 10
+assert decimalstr_to_int('0') == 0
+assert decimalstr_to_int('0x5') == None
+
+#-----------------------------------------------------------------------
 def bit_select(value, upper_bit, lower_bit, shift=False):
     '''Mask out all but a field of bits (from upper->lower inclusive).'''
     if upper_bit < lower_bit:

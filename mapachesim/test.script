@@ -1,3 +1,5 @@
+mem
+step
 load ../asm/factorial-mips.asm
 run
 5
