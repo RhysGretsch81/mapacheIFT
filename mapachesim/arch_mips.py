@@ -41,12 +41,13 @@ class Mips(IsaDefinition):
         self.R[28] = 0x10008000 # same value as SPIM at reset
         self.R[29] = 0x7fffeffc # same value as SPIM at reset
 
-    # Pseudo Instructions
+    # -- Pseudo Instructions ---
+    # (note: all pseudo operands will be coverted to 32-bit unsigned)
 
     def pseudo_li(self, ifield):
         'load immediate : pseudo : li $d !i'
         const = ifield.i
-        if const.bit_length() <= 16:
+        if const.bit_length() <= 16:  # FIX: check negative numbers
             yield f'addiu ${ifield.d} $0 {const}'
         else:
             upper = const & 0xffff0000
@@ -132,7 +133,10 @@ class Mips(IsaDefinition):
                     print(f'... (string continues beyond limit of {maxstring})', end='')
 
         elif self.R[v0] == 5:  # read integer
-            input_str = input()
+            try:
+                input_str = input()
+            except EOFError:
+                raise ExecutionError('syscall read end-of-file')
             input_int = decimalstr_to_int(input_str)
             if input_int:
                 self.R[v0] = input_int

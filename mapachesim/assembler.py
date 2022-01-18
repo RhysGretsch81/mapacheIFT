@@ -7,6 +7,7 @@ import codecs
 import collections
 
 from helpers import bit_select, log2, align
+from helpers import int_to_bitstring, decimalstr_to_int
 from helpers import ISADefinitionError, AssemblyError
 
 asm_id = '[a-zA-Z_][a-zA-Z0-9_]*'
@@ -134,7 +135,7 @@ class Assembler:
                 instr.append(token)
 
     def is_pseudo(self, instr):
-        ''' Return True if instr is a psuedo-instruction. '''
+        ''' Return True if instr is a pseudo-instruction. '''
         iname = instr[0]
         pseudofunc = getattr(self.isa, f'pseudo_{iname}', None)
         return pseudofunc is not None
@@ -145,9 +146,29 @@ class Assembler:
         pseudofunc = getattr(self.isa, f'pseudo_{iname}')
         asm = self.isa._extract_asm(pseudofunc)
         asmops = asm.split()[1:]
-        optable = self.machine_code_make_optable(asmops, iops)
-        ifield = types.SimpleNamespace(**optable)
+        ifield = self.pseudo_ifield(asmops, iops)
         yield from pseudofunc(ifield)
+
+    def pseudo_ifield(self, asmops, iops):
+        ''' Given pseudo instruction format and arguments, parse it into a usable ifield. '''
+        def raise_error(msg):
+            raise AssemblyError(f'{msg} "{" ".join(iops)}" '
+                                f'-> "{" ".join(asmops)}" '
+                                f'at line {self.current_line}.')
+        ifield_table = {}  # map field_name -> bitstring (e.g. 'a'->'010011')
+        for asmop, iop in zip(asmops, iops):
+            field_name, bitstring = self.machine_encode_operand(asmop, iop, None)
+            if not isinstance(bitstring, str):
+                raise_error(f'Invalid pseudo operand error in')
+            if set(bitstring) > set('01'):
+                raise_error(f'Non binary pseudo error "{bitstring}"')
+            if len(bitstring) != self.isa.isize * 8:
+                raise_error(f'Incorrectly sized pseudo field "{field_name}" in')
+            isized_value = int(bitstring,2)
+            ifield_table[field_name] = isized_value
+
+        ifield = types.SimpleNamespace(**ifield_table)
+        return ifield
 
     def segment(self, tokenized_program, segment_name):
         ''' Generate the tokens corresponding to the specified segement. '''
@@ -203,17 +224,17 @@ class Assembler:
         for asmop, iop in zip(asmops, iops):
             field_name, bitstring = self.machine_encode_operand(asmop, iop, bitcount_table)
             if not isinstance(bitstring, str):
-                raise_error(f'Invalid encoding operand error in')
-            if set(bitstring) != set('01'):
+                raise_error(f'Invalid operand error in')
+            if set(bitstring) > set('01'):
                 raise_error(f'Non binary encoding error in')
             if field_name not in bitcount_table:
                 raise_error(f'Unknown field "{field_name}" in')
             if len(bitstring) != bitcount_table[field_name]:
                 raise_error(f'Incorrectly sized field "{field_name}" in')
-            optable[field_name] = bitstring
+            op_table[field_name] = bitstring
 
         for p in bitcount_table:
-            if p not in '01-' and p not in optable:
+            if p not in '01-' and p not in op_table:
                 raise_error(f'Unknown pattern "{p}" in')
 
         instr = 0
@@ -225,11 +246,11 @@ class Assembler:
             elif p=='-':
                 instr = (instr<<1) # zero for don't cares
             else:
-                value = optable[p][0]
-                optable[p] = optable[p][1:]
+                value = op_table[p][0]
+                op_table[p] = op_table[p][1:]
                 if value == '0':
                     instr = (instr<<1)
-                else
+                else:
                     assert value == '1'
                     instr = (instr<<1) | 0x1
 
@@ -240,7 +261,7 @@ class Assembler:
         '''covert the specified asssembly operand into a bitstring of the correct length.'''
         field_type = asmop[0]
         field_name = asmop[1]
-        field_len = bitcount_table[field_name]
+        field_len = bitcount_table[field_name] if bitcount_table else self.isa.isize*8
 
         def error_on_none(val, msg):
             if val is None:
@@ -251,7 +272,7 @@ class Assembler:
             rnum = self.isa.register_number_from_name(iop)
             error_on_none(rnum, 'Unknown register name')
             bitstring = int_to_bitstring(rnum, field_len, signed=False)
-            error_on_none(bistring, 'Register specifier overflow')
+            error_on_none(bitstring, 'Register specifier overflow')
 
         # 0-Relative Addressing (Instruction Word Aligned)
         elif field_type == '@':
@@ -259,14 +280,14 @@ class Assembler:
             error_on_none(addr, 'Unknown label')
             shifted_addr = addr >> log2(self.isa.isize)
             bitstring = int_to_bitstring(shifted_addr, field_len, signed=False)
-            error_on_none(bitstring, 'Address cannot fit in field')
+            error_on_none(bitstring, 'Word address cannot fit in field')
 
         # 0-Relative Addressing (Byte Aligned)
         elif field_type == '&':
             addr = self.labels.get(iop, None)
             error_on_none(addr, 'Unknown label')
             bitstring = int_to_bitstring(addr, field_len, signed=False)
-            error_on_none(bitstring, 'Address cannot fit in field')
+            error_on_none(bitstring, 'Byte address cannot fit in field')
 
         # PC-Relative Addressing
         #elif asmop.startswith('^'):
@@ -274,79 +295,10 @@ class Assembler:
 
         # Decimal Immediates
         elif field_type == '!':
-            immed = 
-MORE
-            elif asmop.startswith('!'):
-                try:
-                    optable[field_name] = int(iop, 10)
-                except ValueError:
-                    raise AssemblyError(f'Cannot parse "{iop}" as base-10 integer constant at line {self.current_line}.')
-            else:
-                raise AssemblyError(f'Unknown asmop "{asmop}" in "{asmops}" at line {self.current_line}.')
-        return optable
-
+            immed = decimalstr_to_int(iop)
+            error_on_none(immed, 'Invalid decimal immediate')
+            bitstring = int_to_bitstring(immed, field_len, signed=True)
+            error_on_none(immed, 'Signed immediate too large')
         
-        return field_name, 
-
-
-
-    def old_machine_code_pack(self, pattern, asmops, iops):
-        '''Pack the instruction operands into the assembly instruction.'''
-        instr = 0
-        optable = self.machine_code_make_optable(asmops, iops)
-        counttable = {p:pattern.count(p) for p in optable}
-        for p in pattern:
-            if p=='0':
-                instr = (instr<<1)
-            elif p=='1':
-                instr = (instr<<1) | 0x1
-            elif p=='-':
-                instr = (instr<<1) 
-            else:
-                value = optable[p]
-                bitpos = counttable[p]-1
-                pbit = bit_select(value, bitpos, bitpos, shift=True)
-                assert pbit==0 or pbit==1
-                instr = (instr<<1) | pbit
-                counttable[p] -= 1
-
-        encoded_instr_as_bytes = instr.to_bytes(self.isa.isize, byteorder=self.isa.endian, signed=False)
-        return encoded_instr_as_bytes
-
-    def old_machine_code_make_optable(self, asmops, iops):
-        optable = {}
-        if len(asmops) != len(iops):
-            raise AssemblyError(f'Cannot match arguments "{" ".join(iops)}" to pattern "{" ".join(asmops)}" at line {self.current_line}.')
-        for op_def, op_input in zip(asmops, iops):
-            # Registers
-            field_name = op_def[1:]
-            if op_def.startswith('$'):
-                rnum = self.isa.register_number_from_name(op_input)
-                if rnum is None:
-                    raise AssemblyError(f'Unknown register name "{op_input}" at line {self.current_line}.')
-                optable[field_name] = rnum
-            # 0-Relative Addressing (Instruction Word Aligned)
-            elif op_def.startswith('@'):
-                if op_input not in self.labels:
-                    raise AssemblyError(f'Unknown label "{op_input}" at line {self.current_line}.')
-                optable[field_name] = self.labels[op_input] >> log2(self.isa.isize)
-            # 0-Relative Addressing (Byte Aligned)
-            elif op_def.startswith('&'):
-                if op_input not in self.labels:
-                    raise AssemblyError(f'Unknown label "{op_input}" at line {self.current_line}.')
-                optable[field_name] = self.labels[op_input]
-            # PC-Relative Addressing
-            elif op_def.startswith('^'):
-                if op_input not in self.labels:
-                    raise AssemblyError(f'Unknown label "{op_input}" at line {self.current_line}.')
-                optable[field_name] = self.labels[op_input] >> log2(self.isa.isize)
-                raise NotImplementedError  # this is going to require some re-thinking
-            # Decimal Immediates
-            elif op_def.startswith('!'):
-                try:
-                    optable[field_name] = int(op_input, 10)
-                except ValueError:
-                    raise AssemblyError(f'Cannot parse "{op_input}" as base-10 integer constant at line {self.current_line}.')
-            else:
-                raise AssemblyError(f'Unknown op_def "{op_def}" in "{asmops}" at line {self.current_line}.')
-        return optable
+        error_on_none(bitstring, 'Failed to encode')
+        return field_name, bitstring

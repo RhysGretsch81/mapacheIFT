@@ -77,6 +77,7 @@ class MapacheConsole(cmd.Cmd):
                 elif print_each:
                     self.print_instruction(pc)
         except ExecutionError as e:
+            pc = self.machine.PC
             stop_string = 'machine error'
             self.print_error(f'Runtime Machine Error: {e}')
 
@@ -190,12 +191,6 @@ class MapacheConsole(cmd.Cmd):
     #    except Exception as e:
     #        self.print_error(f'Error: Uncaught Exception "{e}"')
     #        return False  # continue in cmd loop
-
-    def do_selftest(self, arg):
-        print('loading buggy1-mips.asm..')
-        self.do_load('../asm/buggy1-mips.asm')
-        print('loading buggy2-mips.asm..')
-        self.do_load('../asm/buggy2-mips.asm')
 
     def do_settext(self, arg):
         'Set the text segment start address: e.g. "settext 0x10000"'
