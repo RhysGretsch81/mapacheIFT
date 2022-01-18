@@ -191,6 +191,12 @@ class MapacheConsole(cmd.Cmd):
     #        self.print_error(f'Error: Uncaught Exception "{e}"')
     #        return False  # continue in cmd loop
 
+    def do_selftest(self, arg):
+        print('loading buggy1-mips.asm..')
+        self.do_load('../asm/buggy1-mips.asm')
+        print('loading buggy2-mips.asm..')
+        self.do_load('../asm/buggy2-mips.asm')
+
     def do_settext(self, arg):
         'Set the text segment start address: e.g. "settext 0x10000"'
         self.text_start_address = int(arg,16)

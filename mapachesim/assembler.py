@@ -4,6 +4,7 @@ import re
 import types
 import shlex
 import codecs
+import collections
 
 from helpers import bit_select, log2, align
 from helpers import ISADefinitionError, AssemblyError
@@ -187,6 +188,109 @@ class Assembler:
         return self.machine_code_pack(pattern, asmops, iops)
 
     def machine_code_pack(self, pattern, asmops, iops):
+        '''Return bytes of instruction given pattern and operands.'''
+
+        def raise_error(msg):
+            raise AssemblyError(f'{msg} "{" ".join(iops)}" '
+                                f'-> "{" ".join(asmops)}" '
+                                f'at line {self.current_line}.')
+
+        if len(asmops) != len(iops):
+            raise_error('Cannot match arguments')
+
+        op_table = {}  # map field_name -> bitstring (e.g. 'a'->'010011')
+        bitcount_table = collections.Counter(pattern)  # count of letters
+        for asmop, iop in zip(asmops, iops):
+            field_name, bitstring = self.machine_encode_operand(asmop, iop, bitcount_table)
+            if not isinstance(bitstring, str):
+                raise_error(f'Invalid encoding operand error in')
+            if set(bitstring) != set('01'):
+                raise_error(f'Non binary encoding error in')
+            if field_name not in bitcount_table:
+                raise_error(f'Unknown field "{field_name}" in')
+            if len(bitstring) != bitcount_table[field_name]:
+                raise_error(f'Incorrectly sized field "{field_name}" in')
+            optable[field_name] = bitstring
+
+        for p in bitcount_table:
+            if p not in '01-' and p not in optable:
+                raise_error(f'Unknown pattern "{p}" in')
+
+        instr = 0
+        for p in pattern:
+            if p=='0':
+                instr = (instr<<1)
+            elif p=='1':
+                instr = (instr<<1) | 0x1
+            elif p=='-':
+                instr = (instr<<1) # zero for don't cares
+            else:
+                value = optable[p][0]
+                optable[p] = optable[p][1:]
+                if value == '0':
+                    instr = (instr<<1)
+                else
+                    assert value == '1'
+                    instr = (instr<<1) | 0x1
+
+        encoded_instr_as_bytes = instr.to_bytes(self.isa.isize, byteorder=self.isa.endian, signed=False)
+        return encoded_instr_as_bytes
+
+    def machine_encode_operand(self, asmop, iop, bitcount_table):
+        '''covert the specified asssembly operand into a bitstring of the correct length.'''
+        field_type = asmop[0]
+        field_name = asmop[1]
+        field_len = bitcount_table[field_name]
+
+        def error_on_none(val, msg):
+            if val is None:
+                raise AssemblyError(f'{msg} "{iop}" at line {self.current_line}.')
+
+        # Registers
+        if field_type == '$':
+            rnum = self.isa.register_number_from_name(iop)
+            error_on_none(rnum, 'Unknown register name')
+            bitstring = int_to_bitstring(rnum, field_len, signed=False)
+            error_on_none(bistring, 'Register specifier overflow')
+
+        # 0-Relative Addressing (Instruction Word Aligned)
+        elif field_type == '@':
+            addr = self.labels.get(iop, None)
+            error_on_none(addr, 'Unknown label')
+            shifted_addr = addr >> log2(self.isa.isize)
+            bitstring = int_to_bitstring(shifted_addr, field_len, signed=False)
+            error_on_none(bitstring, 'Address cannot fit in field')
+
+        # 0-Relative Addressing (Byte Aligned)
+        elif field_type == '&':
+            addr = self.labels.get(iop, None)
+            error_on_none(addr, 'Unknown label')
+            bitstring = int_to_bitstring(addr, field_len, signed=False)
+            error_on_none(bitstring, 'Address cannot fit in field')
+
+        # PC-Relative Addressing
+        #elif asmop.startswith('^'):
+        #    raise NotImplementedError  # this is going to require some thinking
+
+        # Decimal Immediates
+        elif field_type == '!':
+            immed = 
+MORE
+            elif asmop.startswith('!'):
+                try:
+                    optable[field_name] = int(iop, 10)
+                except ValueError:
+                    raise AssemblyError(f'Cannot parse "{iop}" as base-10 integer constant at line {self.current_line}.')
+            else:
+                raise AssemblyError(f'Unknown asmop "{asmop}" in "{asmops}" at line {self.current_line}.')
+        return optable
+
+        
+        return field_name, 
+
+
+
+    def old_machine_code_pack(self, pattern, asmops, iops):
         '''Pack the instruction operands into the assembly instruction.'''
         instr = 0
         optable = self.machine_code_make_optable(asmops, iops)
@@ -209,7 +313,7 @@ class Assembler:
         encoded_instr_as_bytes = instr.to_bytes(self.isa.isize, byteorder=self.isa.endian, signed=False)
         return encoded_instr_as_bytes
 
-    def machine_code_make_optable(self, asmops, iops):
+    def old_machine_code_make_optable(self, asmops, iops):
         optable = {}
         if len(asmops) != len(iops):
             raise AssemblyError(f'Cannot match arguments "{" ".join(iops)}" to pattern "{" ".join(asmops)}" at line {self.current_line}.')
