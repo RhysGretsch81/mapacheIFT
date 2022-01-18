@@ -133,7 +133,7 @@ class  IsaDefinition:
         self.bitclip_registers()
         return ireturn
 
-    def disassemble(self, machine_code_instruction=None):
+    def disassemble(self, machine_code_instruction=None, labels=None):
         '''Return a string representation of the given instruction in machine code.
            machine_code can be an array of bytes, an integer, or a hex string. 
            If no matching instruction is found, None is returned.
@@ -146,7 +146,7 @@ class  IsaDefinition:
         if not ifunction:
             return None
         asm_pattern = self._extract_asm(ifunction)
-        instr_string = self._format_asm(asm_pattern, ifield)
+        instr_string = self._format_asm(asm_pattern, ifield, labels)
         return instr_string
 
     def step(self):
@@ -255,30 +255,45 @@ class  IsaDefinition:
         monospaced_pattern = str.join(' ', clean_pattern.split())
         return monospaced_pattern
 
-    def _format_asm(self, asm_pattern, ifield):
+    def _format_asm(self, asm_pattern, ifield, labels):
+        ''' Return a string of the pattern filled with the field data.'''
+
         def operand_field(part, indicator):
             # TODO much better error handling
             fchar = part[1:]
             assert len(fchar)==1
             return getattr(ifield, fchar)
 
+        def label_string(addr):
+            if labels:
+                for label, laddr in labels.items():
+                    if addr == laddr:
+                        return f'{{{label}}}'
+            return ''
+
         instruction = []
         for i,part in enumerate(asm_pattern.split()):
             if i==0:
                 instruction.append(part)  # instruction name
             elif part.startswith('$'):
+                # register
                 rnum = operand_field(part, '$')
                 instruction.append(f'${rnum}')
             elif part.startswith('@'):
-                addr = operand_field(part, '@')
-                instruction.append(f'{hex(addr<<2)}')
+                # word address
+                addr = operand_field(part, '@') << 2
+                label = label_string(addr)
+                instruction.append(f'{hex(addr)}{label}')
             elif part.startswith('&'):
+                # byte address
                 addr = operand_field(part, '&')
                 instruction.append(f'{hex(addr)}')
             elif part.startswith('^'):
+                # PC-relative word address (not supported yet)
                 addr = operand_field(part, '^')
                 instruction.append(f'+{hex(addr<<2)}')
             elif part.startswith('!'):
+                # immediate
                 immed = operand_field(part, '!')
                 instruction.append(f'{immed}')
             else:

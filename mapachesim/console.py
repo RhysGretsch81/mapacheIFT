@@ -121,12 +121,15 @@ class MapacheConsole(cmd.Cmd):
         if not pc:  
             pc = self.machine.PC
         note_string = f'({note})' if note else ''
+        raw_string = 'xx'*self.machine.isize
+        dis_string = '<unknown>'
         try:
             current_instruction = self.machine.mem_read_instruction(pc)
-            istring = self.machine.disassemble(current_instruction)
-        except:
-            istring = '<unknown>'
-        print(f'{pc:010x}: {istring} {note_string}')
+            raw_string = f'{current_instruction:010x}'
+            dis_string = self.machine.disassemble(current_instruction, self.labels)
+        except ExecutionError:
+            pass
+        print(f'[{pc:010x}] {raw_string}   {dis_string} {note_string}')
 
     def print_registers(self):
         '''Helper function for printing register state.'''
@@ -235,7 +238,7 @@ class MapacheConsole(cmd.Cmd):
         'Disassemble a hex sequence as an instruction: e.g. "decode 0x21290004", "decode 21 29 00 04"'
         hex_string = str.join('', arg.split())
         try:
-            istring = self.machine.disassemble(hex_string)
+            istring = self.machine.disassemble(hex_string, self.labels)
             print(f'{hex_string} -> {istring}')
         except:
             self.print_error(f'Error: Cannot diassasmble "{instr_string}".')
