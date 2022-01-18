@@ -125,11 +125,11 @@ class MapacheConsole(cmd.Cmd):
         dis_string = '<unknown>'
         try:
             current_instruction = self.machine.mem_read_instruction(pc)
-            raw_string = f'{current_instruction:010x}'
+            raw_string = f'{current_instruction:#010x}'
             dis_string = self.machine.disassemble(current_instruction, self.labels)
         except ExecutionError:
             pass
-        print(f'[{pc:010x}] {raw_string}   {dis_string} {note_string}')
+        print(f'[{pc:#010x}] {raw_string}   {dis_string} {note_string}')
 
     def print_registers(self):
         '''Helper function for printing register state.'''
@@ -284,7 +284,7 @@ class MapacheConsole(cmd.Cmd):
                 self.print_error(f'Cannot add unaligned breakpoint to address "{addr}".')
             else:
                 self.breakpoints[addr] = arg
-                print(f'Added breakpoint at {addr:010x} (named "{arg}").')
+                print(f'Added breakpoint at {addr:#010x} (named "{arg}").')
 
     def do_delete(self, arg):
         'Delete breakpoint at specificed address or label.'
@@ -292,7 +292,7 @@ class MapacheConsole(cmd.Cmd):
         if addr is not None:
             if addr in self.breakpoints:
                 del self.breakpoint[addr]
-                print(f'Removed breakpoint from address "{addr:010x}".')
+                print(f'Removed breakpoint from address "{addr:#010x}".')
             else:
                 self.print_error(f'No breakpoint set at "{addr}".')
 
@@ -301,7 +301,7 @@ class MapacheConsole(cmd.Cmd):
         print()
         print(f'Currently tracking {len(self.breakpoints)} breakpoints.')
         for addr in self.breakpoints:
-            print(f'  {addr:010x}: {self.breakpoints[addr]}')
+            print(f'  {addr:#010x}: {self.breakpoints[addr]}')
         print()
 
     def do_labels(self, arg):
@@ -309,7 +309,7 @@ class MapacheConsole(cmd.Cmd):
         print()
         print(f'Currently know of {len(self.labels)} labels.')
         for label in self.labels:
-            print(f'  {self.labels[label]:010x} <- {label}')
+            print(f'  {self.labels[label]:#010x} <- {label}')
         print()
 
     def do_exit(self, arg):
