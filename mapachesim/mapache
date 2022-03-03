@@ -20,11 +20,12 @@ from console import MapacheConsole
 parser = argparse.ArgumentParser(description=description, epilog=epilog)
 parser.add_argument('asm', nargs='?', help='A ".asm" file to load and run')
 parser.add_argument('-q', '--quiet', action='store_true')
+parser.add_argument('--arch', '-a')
 args = parser.parse_args()
 
 if __name__ == '__main__':
     verbose = not args.quiet
-    console = MapacheConsole(verbose)
+    console = MapacheConsole(verbose, args.arch)
     if args.asm:
         console.do_load(args.asm)
         console.do_run('')

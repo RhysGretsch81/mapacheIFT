@@ -14,6 +14,7 @@ from helpers import hexstr_to_int, decimalstr_to_int
 
 import arch_mips
 import arch_m248
+import arch_ift
 
 
 def _chunk_list(lst, n):
@@ -32,19 +33,26 @@ class MapacheConsole(cmd.Cmd):
     intro = 'Welcome to MapacheSIM. Type help or ? to list commands.\n'
     prompt = '(mapache) '
 
-    def __init__(self, verbose=True):
+    def __init__(self, verbose=True, arch=None):
         super().__init__()
         self._verbose = verbose
-        self.initialize()
+        self.initialize(arch)
         signal.signal(signal.SIGINT, handler=self.handler_sigint)
         self._interrupted = False # true when sigint has been caught
         self._running = False # true only during a "run"
 
     # --- Simualtion and Machine State --------------------------------------
 
-    def initialize(self):
+    def initialize(self, arch=None):
         #self.machine = m248.M248()
-        self.machine = arch_mips.Mips()
+        IFT = False
+        if arch == 'Mips' or not arch:
+            self.machine = arch_mips.Mips()
+        elif arch == 'IFT':
+            self.machine = arch_ift.Mips_IFT()
+            IFT = True
+        else:
+            raise Exception(f"Architecture '{arch}' not recognized")
         self.print_verbose(f'Loading "{type(self.machine).__name__}" processor model.')
         self.text_start_address = self.machine.text_start_address
         self.data_start_address = self.machine.data_start_address

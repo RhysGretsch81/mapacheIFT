@@ -7,7 +7,7 @@ import codecs
 import collections
 
 from helpers import bit_select, log2, align
-from helpers import int_to_bitstring, decimalstr_to_int
+from helpers import int_to_bitstring, decimalstr_to_int, hexstr_to_int
 from helpers import ISADefinitionError, AssemblyError
 
 asm_id = '[a-zA-Z_][a-zA-Z0-9_]*'
@@ -66,7 +66,12 @@ class Assembler:
                     continue
                 label = self.parse_label(dline[0])
                 type, value = self.code_data(dline[1], dline[2])
-                yield label, type, value 
+                yield label, type, value
+                #Handle arrays
+                for i in range(3, len(dline)):
+                    label = label + '[%s]'%(i-2)
+                    type, value = self.code_data(dline[1], dline[i])
+                    yield label, type, value
                 dline = []
             else:
                 dline.append(token)
@@ -91,9 +96,9 @@ class Assembler:
             #return 'asciiz', naked_string.encode('ascii') + b'\x00'
             return 'asciiz', codecs.escape_decode(naked_string)[0] + b'\x00'
         elif type == '.word':
-            return 'word', int(value).to_bytes(4, self.isa.endian)
+            return 'word', int(value, 0).to_bytes(4, self.isa.endian)
         elif type == '.half':
-            return 'half', int(value).to_bytes(2, self.isa.endian)
+            return 'half', int(value, 0).to_bytes(2, self.isa.endian)
         else:
             raise AssemblyError(f'Unknown data type "{type}" at line {self.current_line}.')
 
