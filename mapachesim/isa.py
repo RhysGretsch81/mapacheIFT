@@ -23,6 +23,7 @@ class  IsaDefinition:
         self.isize = 4  # width of an instruction in bytes
         self.text_start_address = 0x10000
         self.data_start_address = 0x40000
+        self.stack_start_address = 0x7fe00000
         self.assembler = assembler.Assembler(self)
         # try and catch some common errors early
         self.sanity_check()

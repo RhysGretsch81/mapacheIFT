@@ -96,9 +96,13 @@ class Assembler:
             #return 'asciiz', naked_string.encode('ascii') + b'\x00'
             return 'asciiz', codecs.escape_decode(naked_string)[0] + b'\x00'
         elif type == '.word':
-            return 'word', int(value, 0).to_bytes(4, self.isa.endian)
+            value = int(value, 0)
+            value = value - (1<<31) if value & (1<<31) and value > 0 else value
+            return 'word', value.to_bytes(4, self.isa.endian, signed=True)
         elif type == '.half':
-            return 'half', int(value, 0).to_bytes(2, self.isa.endian)
+            value = int(value, 0)
+            value = value - (1<<15) if value & (1<<15) else value
+            return 'half', value.to_bytes(2, self.isa.endian, signed=True)
         else:
             raise AssemblyError(f'Unknown data type "{type}" at line {self.current_line}.')
 

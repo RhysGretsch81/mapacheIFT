@@ -15,6 +15,7 @@ from helpers import hexstr_to_int, decimalstr_to_int
 import arch_mips
 import arch_m248
 import arch_ift
+import arch_ift_coarse
 
 
 def _chunk_list(lst, n):
@@ -51,16 +52,19 @@ class MapacheConsole(cmd.Cmd):
         elif arch == 'IFT':
             self.machine = arch_ift.Mips_IFT()
             IFT = True
+        elif arch == 'IFT2':
+            self.machine = arch_ift_coarse.Mips_IFT()
         else:
             raise Exception(f"Architecture '{arch}' not recognized")
         self.print_verbose(f'Loading "{type(self.machine).__name__}" processor model.')
         self.text_start_address = self.machine.text_start_address
         self.data_start_address = self.machine.data_start_address
+        self.stack_start_address = self.machine.stack_start_address
         self.labels = {}
         self.breakpoints = {}
         # map 2MB chuncks of memory for emulation
         self.machine.mem_map(self.text_start_address, 2 * 1024 * 1024) # text and global
-        self.machine.mem_map(0x7fe00000, 2 * 1024 * 1024) # stack
+        self.machine.mem_map(self.stack_start_address , 2 * 1024 * 1024) # stack
 
     def simulate(self, max_instructions=math.inf, print_each=False):
         '''Run the machine simulation forward until broken, used by "run", "continue", and "step".'''

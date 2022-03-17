@@ -7,7 +7,6 @@ from helpers import ExecutionError, ExecutionComplete
 from isa import IsaDefinition
 from assembler import Assembler
 
-from ift.interface import trackInfo
 
 
 def _chunk_list(lst, n):
@@ -22,7 +21,7 @@ class Mips_IFT(IsaDefinition):
     #The programmer must declare what is untrusted
     def __init__(self):
         super().__init__()
-        self.ift_ratio = 1
+        self.ift_ratio = 32
         self.split_mem() #Indicates every bit maps to an ift bit
         self.mem_last_addr = self.text_start_address + 2*1024*1024
         mips_rnames = {
@@ -108,9 +107,9 @@ class Mips_IFT(IsaDefinition):
         mask = ~self.ift_mask(addr)
         ift_word &= mask
         ift_word |= data
-        if ift_word & 1<<31 and ift_word > 0:
-            #necessary to store properly if sign bit is 1
-            ift_word = ift_word - (1 << 32)
+        if ift_word == 2**32 - 1:
+            #necessary to store properly if all 1's (Completely untrusted)
+            ift_word = -1
         self.mem_write_32bit(ift_addr, ift_word)
 
     def print_mem(self, verbose=True):
@@ -202,8 +201,7 @@ class Mips_IFT(IsaDefinition):
     def instruction_srl(self, ifield):
         'shift right logical : 000000 ----- ttttt ddddd hhhhh 000010: srl $d $t !h'
         self.R[ifield.d] = self.R[ifield.t] >> ifield.h
-        self.T[ifield.d] = self.T[ifield.t] >> ifield.h
-        #Assume the program is trusted, so shifted in bits should remain trusted
+        self.T[ifield.d] = self.T[ifield.t]
 
     def instruction_sra(self, ifield):
         'shift right arithmetic : 000000 ----- ttttt ddddd hhhhh 000011: sra $d $t !h'
@@ -289,21 +287,16 @@ class Mips_IFT(IsaDefinition):
 
     def instruction_mult(self, ifield):
         'multiply : 000000 sssss ttttt ----- ----- 011000: mult $s $t'
-        val, trust = trackInfo('MULT', self.R[ifield.s], self.R[ifield.t], \
-                               self.T[ifield.s], self.T[ifield.t])
         result = self.R[ifield.s] * self.R[ifield.t]
-        assert(val == result)
         self.LO = result
         self.HI = result>>32
-        self.LO_trust = trust #self.T[ifield.s] | self.T[ifield.t]
-        self.HI_trust = trust>>32 #self.T[ifield.s] | self.T[ifield.t]
+        self.LO_trust = self.T[ifield.s] | self.T[ifield.t]
+        self.HI_trust = self.T[ifield.s] | self.T[ifield.t]
 
     def instruction_add(self, ifield):
         'add : 000000 sssss ttttt ddddd ----- 100000: add $d $s $t'
-        circuitData = trackInfo('ADD', self.R[ifield.s], self.R[ifield.t], \
-                                self.T[ifield.s], self.T[ifield.t], 0, 0)
-        self.T[ifield.d] = circuitData[2]
         self.R[ifield.d] = self.R[ifield.s] + self.R[ifield.t]
+        self.T[ifield.d] = self.T[ifield.s] | self.T[ifield.t]
 
     # J-format Instructions
 
@@ -384,22 +377,18 @@ class Mips_IFT(IsaDefinition):
     
     def instruction_xor(self, ifield):
         'Bitwise exclusive or : 000000 sssss ttttt ddddd ----- 100110 : xor $d $s $t'
-        self.T[ifield.d] = trackInfo("XOR", self.R[ifield.s], self.R[ifield.t], \
-                                     self.T[ifield.s], self.T[ifield.t])
         self.R[ifield.d] = self.R[ifield.s] ^ self.R[ifield.t]
-    
+        self.T[ifield.d] = self.T[ifield.s] | self.T[ifield.t]
 
     def instruction_and(self, ifield):
         'Bitwise and : 000000 sssss ttttt ddddd ----- 100100 : and $d $s $t'
-        self.T[ifield.d] = trackInfo("AND", self.R[ifield.s], self.R[ifield.t], \
-                                     self.T[ifield.s], self.R[ifield.t])
         self.R[ifield.d] = self.R[ifield.s] & self.R[ifield.t]
+        self.T[ifield.d] = self.T[ifield.s] | self.T[ifield.t]
     
     def instruction_andi(self, ifield):
         'Bitwise and immediate : 001100 sssss ttttt iiiiiiiiiiiiiiii : andi $t $s !i'
-        self.T[ifield.t] = trackInfo("AND", self.R[ifield.s], sign_extend(ifield.i, 16), \
-                                     self.T[ifield.s], 0)
         self.R[ifield.t] = self.R[ifield.s] & sign_extend(ifield.i, 16)
+        self.T[ifield.t] = self.T[ifield.s]
     
     def instruction_trust(self, ifield):
         'Trust value in register: 101010 ttttt iiiiiiiiiiiiiiii ----- : trust $t !i'

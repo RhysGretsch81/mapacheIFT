@@ -1,7 +1,7 @@
 .data
 
-trusted: .word 0b010
-untrusted: .word 15
+trusted: .word 0xA03456
+untrusted: .word 0xAAAAAAAA
 out: .word 0
 
 
@@ -12,6 +12,8 @@ main:
     lw $t0, 0($t0)
     #Using trust -1 indicates all bits are untrusted
     trust $t0, -1
+    la $s0, trusted
+    sw $t0, 0($s0)
 
     #Print first value
     move $a0, $t0
@@ -44,6 +46,7 @@ main:
 calc_hamming:
     #assume 32 bit vectors
     li $t2, 0
+    trust $t2, 0
     xor $t0, $t0, $t1
     li $t3, 32
 
